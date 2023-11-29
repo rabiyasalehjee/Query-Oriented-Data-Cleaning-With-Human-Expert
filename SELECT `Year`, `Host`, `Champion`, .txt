@@ -1,7 +1,0 @@
-SELECT `ID`, `Year`, `Host`, `Champion`, `Runner_Up`, `Third_Place`, `Matches_Played`, `Goals_Scored` FROM `db_messy` WHERE 1
-
-SELECT `Year`, `Third_Place` FROM `db_messy` WHERE 1
-
-SELECT Year, Champion FROM db_messy WHERE Champion = 'Brazil' GROUP BY Year;
-
-ALTER TABLE db_messy ADD PRIMARY KEY (year);

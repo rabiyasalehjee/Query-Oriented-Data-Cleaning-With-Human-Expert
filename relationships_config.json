@@ -5,24 +5,6 @@
     {"main_column": "Year", "related_column": "Runner_Up"},
     {"main_column": "Year", "related_column": "Third_Place"},
     {"main_column": "Year", "related_column": "Matches_Played"},
-    {"main_column": "Year", "related_column": "Goals_Scored"},
-    {"main_column": "Host", "related_column": "Year"},
-    {"main_column": "Host", "related_column": "Champion"},
-    {"main_column": "Host", "related_column": "Runner_Up"},
-    {"main_column": "Host", "related_column": "Third_Place"},
-    {"main_column": "Champion", "related_column": "Year"},
-    {"main_column": "Champion", "related_column": "Host"},
-    {"main_column": "Champion", "related_column": "Runner_Up"},
-    {"main_column": "Champion", "related_column": "Third_Place"},
-    {"main_column": "Runner_Up", "related_column": "Host"},
-    {"main_column": "Runner_Up", "related_column": "Champion"},
-    {"main_column": "Runner_Up", "related_column": "Third_Place"},
-    {"main_column": "Third_Place", "related_column": "Year"},
-    {"main_column": "Third_Place", "related_column": "Host"},
-    {"main_column": "Third_Place", "related_column": "Champion"},
-    {"main_column": "Third_Place", "related_column": "Runner_Up"},
-    {"main_column": "Matches_Played", "related_column": "Year"},
-    {"main_column": "Goals_Scored", "related_column": "Year"}
-    
+    {"main_column": "Year", "related_column": "Goals_Scored"}  
   ]
 }

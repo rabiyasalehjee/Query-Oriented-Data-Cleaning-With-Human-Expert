@@ -12,17 +12,20 @@
     <div class="container">
         <h1>Query Oriented Data Cleaning</h1>
         <div id="question-container"></div>
+        <div id="missing-questions-container">  New container for missing data questions 
+            <h2>Missing Data Questions:</h2>
+            <ul id="missing-questions-list"></ul>
+        </div>
         <p id="question-count"></p>
         <button id="yes-btn">Yes</button>
         <button id="no-btn">No</button>
         <button id="back-btn">Back</button>
-        <button id="find-missing-btn">Find Missing Data Values</button>
+        <button id="find-missing-btn" onclick="window.location.href='/find_missing_values'">Find Missing Data Values</button>
     </div>
     <!-- New Section to Display Generated Queries -->
     <div id="generated-queries-container">
         <h2>Generated Queries:</h2>
         <ul id="generated-queries-list"></ul>
-    </div>
     </div>
     <div id="queryModal" class="modal">
         <div class="modal-content">
@@ -37,6 +40,8 @@
             // Access the preRenderedQuestions variable directly
             var preRenderedQuestions = {{ pre_rendered_questions | safe }};
             var generatedQueries = []; // Initialize the array to store generated queries
+            //var missingQuestions = []; // Initialize the array to store missing data questions
+            var missingQuestions = preRenderedQuestions.filter(question => question.message.toLowerCase().includes("missing"));
 
             // Output the questions array to the console for debugging
             console.log('Pre-rendered questions:', preRenderedQuestions);
@@ -53,20 +58,20 @@
             const questionCount = document.getElementById('question-count');
             const generatedQueriesContainer = document.getElementById('generated-queries-container');
             const generatedQueriesList = document.getElementById('generated-queries-list');
+            const missingQuestionsContainer = document.getElementById('missing-questions-container'); // New container
 
             function displayQuestion() {
-    if (currentQuestionIndex < totalQuestions) {
-        console.log('Displaying question:', preRenderedQuestions[currentQuestionIndex]);
-        const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-        questionContainer.innerHTML = `
-            <label>${currentQuestion.message}</label>
-        `;
-        updateQuestionCount();
-    } else {
-        alert('All questions answered. Submitting form...');
-    }
-}
-
+                if (currentQuestionIndex < totalQuestions) {
+                    console.log('Displaying question:', preRenderedQuestions[currentQuestionIndex]);
+                    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+                    questionContainer.innerHTML = `
+                        <label>${currentQuestion.message}</label>
+                    `;
+                    updateQuestionCount();
+                } else {
+                    alert('All questions answered. Submitting form...');
+                }
+            }
 
             // Function to update the question count display
             function updateQuestionCount() {
@@ -87,6 +92,25 @@
                 // Show or hide the generated queries container based on whether there are queries
                 generatedQueriesContainer.style.display = generatedQueries.length > 0 ? 'block' : 'none';
             }
+
+            // Function to update the missing data questions display
+            function updateMissingQuestions() {
+            const missingQuestionsList = document.getElementById('missing-questions-list');
+            missingQuestionsList.innerHTML = '';
+
+            // Display each missing data question in the list
+            missingQuestions.forEach((question, index) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${index + 1}. ${question.message}`;
+                missingQuestionsList.appendChild(listItem);
+            });
+
+            // Show or hide the missing data questions container based on whether there are questions
+            const missingQuestionsContainer = document.getElementById('missing-questions-container');
+            missingQuestionsContainer.style.display = missingQuestions.length > 0 ? 'block' : 'none';
+        }
+        // Call the function to initially display missing questions
+        updateMissingQuestions();
 
             function answerYes() {
                 currentQuestionIndex++;
@@ -111,8 +135,14 @@
                     const userQuery = userQueryInput.value.trim();
 
                     if (userQuery !== '') {
-                        // Append the user's query to the generated queries list
-                        generatedQueries.push(userQuery);
+                        // Append the user's query to the appropriate array
+                        if (missingQuestions.length > 0) {
+                            missingQuestions.shift(); // Remove the first missing question
+                            updateMissingQuestions();
+                        } else {
+                            generatedQueries.push(userQuery);
+                            updateGeneratedQueries();
+                        }
 
                         // Proceed to the next question or submit the form
                         currentQuestionIndex++;
@@ -122,9 +152,6 @@
                             // Submit the form (you may want to implement the form submission logic here)
                             console.log('All questions answered. Submitting form...');
                         }
-
-                        // Update the generated queries display
-                        updateGeneratedQueries();
 
                         // Close the modal
                         modal.style.display = 'none';
@@ -153,19 +180,28 @@
             }
 
             function findMissingValues() {
-    const missingQuestions = preRenderedQuestions.filter(question => question.message.includes("missing"));
-    console.log('Missing Questions:', missingQuestions);
-    totalQuestions = missingQuestions.length;
+    // Filter missing questions based on the main column value being empty
+    const filteredMissingQuestions = preRenderedQuestions.filter(question => {
+        const mainColumn = question.message.split("'")[1];
+        const mainColumnValue = row[mainColumn];
+        return mainColumnValue === '';
+    });
+
+    console.log('Filtered Missing Questions:', filteredMissingQuestions);
+
+    totalQuestions = filteredMissingQuestions.length;
+
     if (totalQuestions > 0) {
-        // Update the current index and questions array
+        // Update the current index and questions array with filtered missing questions
         currentQuestionIndex = 0;
-        preRenderedQuestions = missingQuestions;
+        preRenderedQuestions = filteredMissingQuestions;
         findMissingBtn.disabled = true;
         displayQuestion();
     } else {
         questionContainer.innerHTML = '<p>No missing data questions found.</p>';
         questionCount.textContent = '0 of 0';
     }
+
     updateGeneratedQueries();
 }
 

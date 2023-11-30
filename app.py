@@ -169,6 +169,8 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
 
     questions = []
     question_count = 0
+    # Keep track of rows to avoid duplicate questions
+    processed_rows = set()
 
     # Generate Questions for User
     for index, row in dataframe.iterrows():
@@ -179,9 +181,25 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
         # Predict using the trained model
         prediction = classifier.predict(feature_vector)[0]
 
+        if index in processed_rows:
+            continue
+
         # Generate a question for each relationship
         for relationship in relationships_config:
-            question_text = generate_question_for_relationship(row, relationship, relationships_config, prediction)
+            main_column = relationship['main_column']
+            related_column = relationship['related_column']
+
+            main_value = row[main_column]
+            related_value = row[related_column]
+
+            # Check if either main or related value is missing or empty
+            if pd.isnull(main_value) or main_value == '' or pd.isnull(related_value) or related_value == '':
+                # Generate the question for missing data
+                question_text = f"The data in '{main_column}' related to '{related_column}' with value '{related_value}' is missing or empty. Do you want to modify the data?"
+            else:
+                # Generate the question without mentioning "missing"
+                question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
+
             question_count += 1
             question = {
                 'type': 'confirm',
@@ -191,8 +209,12 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
             }
             questions.append(question)
 
+        # Add the row to processed rows to avoid duplicate questions
+        processed_rows.add(index)
+
     print(f"Total questions generated: {question_count}")
     return questions
+
 
 
 def generate_question_for_relationship(row, relationship, relationships_config, prediction):
@@ -204,15 +226,16 @@ def generate_question_for_relationship(row, relationship, relationships_config, 
     main_value = row[main_column]
     related_value = row[related_column]
 
-    # Check if the value is missing
-    if pd.isnull(main_value):
-        # If missing, generate a question explicitly mentioning "missing"
-        question_text = f"The '{main_column}' value for '{related_column}' with value '{related_value}' is missing. Do you want to modify the data? (Predicted: {'Yes' if prediction == 0 else 'No'})"
-    else:
+    # Check if both main and related values are not missing
+    if not (pd.isnull(main_value) or pd.isnull(related_value)):
         # If not missing, generate the question without mentioning "missing"
         question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
+    else:
+        # If missing, generate a question explicitly mentioning "missing"
+        question_text = f"The data in '{main_column}' related to '{related_column}' with value '{related_value}' is missing or empty. Do you want to modify the data?"
 
     return question_text
+
 
 '''def random_question(row, relationships, prediction):
     # Randomly select a relationship

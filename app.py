@@ -58,7 +58,7 @@ def find_related_column(column, relationships):
             return relationship['related_column']
     return None
 
-def generate_questions(dataframe, relationships_config):
+'''def generate_questions(dataframe, relationships_config):
     questions = []
 
     # Step 1: Check Existing Data Against Rules
@@ -104,7 +104,7 @@ def generate_questions(dataframe, relationships_config):
                 }
                 questions.append(question)
 
-    return questions
+    return questions'''
 
 # Function to check correction needed
 def check_correction_needed(row):
@@ -162,36 +162,59 @@ def train_classification_model(dataframe, relationships_config):
 
     return classifier, vectorizer
 
-
 # Function to generate questions using the machine learning model
 def generate_questions_ml(dataframe, relationships_config, YourTable):
     # Train the classification model
     classifier, vectorizer = train_classification_model(dataframe, relationships_config)
 
     questions = []
+    question_count = 0
 
     # Generate Questions for User
     for index, row in dataframe.iterrows():
-        # Selecting only the relevant text columns for feature extraction
+        # Selecting all text columns for feature extraction
         text_columns = [column for column in dataframe.columns if dataframe[column].dtype == 'O']
         feature_vector = vectorizer.transform([str(row[column]) for column in text_columns])
 
         # Predict using the trained model
         prediction = classifier.predict(feature_vector)[0]
 
-        # Randomly generate a question based on the prediction
-        question_text = random_question(row, relationships_config, prediction)
-        question = {
-            'type': 'confirm',
-            'name': f'q_{index}_ml_correct',
-            'message': question_text,
-            'default': True,
-        }
-        questions.append(question)
+        # Generate a question for each relationship
+        for relationship in relationships_config:
+            question_text = generate_question_for_relationship(row, relationship, relationships_config, prediction)
+            question_count += 1
+            question = {
+                'type': 'confirm',
+                'name': f'q_{index}_ml_correct_{relationship["main_column"]}',
+                'message': question_text,
+                'default': True,
+            }
+            questions.append(question)
 
+    print(f"Total questions generated: {question_count}")
     return questions
 
-def random_question(row, relationships, prediction):
+
+def generate_question_for_relationship(row, relationship, relationships_config, prediction):
+    # Get main column and related column from the relationship
+    main_column = relationship['main_column']
+    related_column = relationship['related_column']
+
+    # Get values for the selected columns
+    main_value = row[main_column]
+    related_value = row[related_column]
+
+    # Check if the value is missing
+    if pd.isnull(main_value):
+        # If missing, generate a question explicitly mentioning "missing"
+        question_text = f"The '{main_column}' value for '{related_column}' with value '{related_value}' is missing. Do you want to modify the data? (Predicted: {'Yes' if prediction == 0 else 'No'})"
+    else:
+        # If not missing, generate the question without mentioning "missing"
+        question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
+
+    return question_text
+
+'''def random_question(row, relationships, prediction):
     # Randomly select a relationship
     relationship = random.choice(relationships)
 
@@ -209,9 +232,9 @@ def random_question(row, relationships, prediction):
         question_text = f"The '{main_column}' value for '{related_column}' with value '{related_value}' is missing. Do you want to modify the data? (Predicted: {'Yes' if prediction == 0 else 'No'})"
     else:
         # If not missing, generate the question without mentioning "missing"
-        question_text = f"Is the data '{main_value}' in '{main_column}' related to '{related_column}' with value '{related_value}' accurate? (Predicted: {'Yes' if prediction == 1 else 'No'})"
+        question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
 
-    return question_text
+    return question_text'''
 
 
 @app.route('/')
@@ -240,17 +263,17 @@ def index():
     app.config['DATAFRAME'] = dataframe
 
     # Generate questions based on relationships configuration
-    questions_rules = generate_questions(dataframe, relationships_config)
+    #questions_rules = generate_questions(dataframe, relationships_config)
 
     # Combine both sets of questions
-    questions = questions_ml + questions_rules
+    #questions = questions_ml + questions_rules
 
     # Convert the Python list to JSON using json.dumps with double quotes
     pre_rendered_questions = json.dumps([
         {
             "name": question["name"],
             "message": question["message"].strip().replace('"', '\\"')  # Escape double quotes
-        } for question in questions
+        } for question in questions_ml
     ], ensure_ascii=False)
 
     return render_template('index.html', pre_rendered_questions=pre_rendered_questions)
@@ -295,33 +318,18 @@ def generate_missing_data_questions(dataframe, relationships_config):
 
     return missing_questions
 
-
-
 @app.route('/process_answers', methods=['POST'])
 def process_answers():
     answers = request.form.to_dict()
-    # Retrieve the dataframe from the Flask app context
     dataframe = app.config['DATAFRAME']
-    # Process answers (modify the database accordingly)
+
     for key, answer in answers.items():
-        index, column, action = key.split('_')[1:]
-        index, column = int(index), str(column)
-        
-        if action == 'missing':
-            # Check if the answer indicates missing data
-            if answer.lower() == 'no':
-                # Retrieve user-provided query for missing data
-                user_query = request.form.get(f'q_{index}_{column}_missing_query')
-                if user_query:
-                    # Append the user's query to the generated queries list
-                    generatedQueries.append(user_query)
-        else:
-            # Process other types of questions (e.g., correctness)
-            if answer.lower() == 'no':
-                print(f"Modify the value in the '{column}' column for the year {dataframe.at[index, 'Year']}.")
-                # Perform the actual database modification using SQLAlchemy update statements
-                # Example: WorldCup.query.filter_by(YEAR=dataframe.at[index, 'YEAR']).update({column: 'new_value'})
-                # Note: You need to commit the changes to make them persistent
+        index, _, _ = key.split('_')[1:]
+        index = int(index)
+
+        if answer.lower() == 'no':
+            print(f"Modify the data for the row at index {index}.")
+            # Perform the actual data modification using SQLAlchemy update statements
 
     return 'Answers processed successfully!'
 

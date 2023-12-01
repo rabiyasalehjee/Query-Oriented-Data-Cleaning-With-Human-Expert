@@ -12,6 +12,7 @@ import pandas as pd
 import pymysql
 import json
 import random
+from rules import apply_rules
 
 pymysql.install_as_MySQLdb()
 
@@ -58,6 +59,52 @@ def find_related_column(column, relationships):
             return relationship['related_column']
     return None
 
+def load_data_from_database():
+    # Assuming YourTable is a SQLAlchemy model
+    data = YourTable.query.all()
+
+    # Extract relevant columns from the query result
+    columns_to_include = [column.key for column in YourTable.__table__.columns]
+    data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
+
+    # Convert the list of dictionaries to a DataFrame
+    dataframe = pd.DataFrame(data_dict_list)
+
+    return dataframe
+
+# Function to apply rules to the database
+def apply_rules_to_database():
+    # Load data from the database
+    dataframe = load_data_from_database()
+
+    # Apply rules to clean the data
+    cleaned_dataframe = apply_rules(dataframe)
+
+    # Remove the internal SQLAlchemy column
+    cleaned_dataframe = cleaned_dataframe.drop('_sa_instance_state', axis=1, errors='ignore')
+
+    # Update the database with the cleaned data
+    update_database_with_cleaned_data(cleaned_dataframe, YourTable)
+
+    print("Data cleaning and update complete.")
+
+
+# Assuming primary key variations: "ID", "id", "Id"
+primary_key_variations = ["ID", "id", "Id"]
+
+def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
+    for index, row in cleaned_dataframe.iterrows():
+        # Find the primary key column variation that exists in the DataFrame
+        primary_key_column = next((col for col in primary_key_variations if col in row.index), None)
+
+        if primary_key_column:
+            # Update the row in the database based on the found primary key column
+            db.session.query(YourTable).filter(getattr(YourTable, primary_key_column) == row[primary_key_column]).update(row.to_dict())
+
+    # Commit the changes to the database
+    db.session.commit()
+
+
 # Function to check correction needed
 def check_correction_needed(row):
     """
@@ -91,6 +138,8 @@ def train_classification_model(dataframe, relationships_config):
     # Assume 'Correction_Needed' is a new column indicating whether correction is needed (1) or not (0)
     dataframe['Correction_Needed'] = dataframe.apply(lambda row: check_correction_needed(row), axis=1)
 
+    
+
     # Feature extraction
     features = dataframe.apply(lambda row: ' '.join([str(row[column]) for column in dataframe.columns]), axis=1)
 
@@ -115,6 +164,9 @@ def train_classification_model(dataframe, relationships_config):
 
 # Function to generate questions using the machine learning model
 def generate_questions_ml(dataframe, relationships_config, YourTable):
+    # Apply rules
+    dataframe = apply_rules(dataframe)
+
     # Train the classification model
     classifier, vectorizer = train_classification_model(dataframe, relationships_config)
 
@@ -203,8 +255,12 @@ def index():
     # Generate questions using machine learning model
     questions_ml = generate_questions_ml(dataframe, relationships_config, YourTable)
 
-    # Remove 'Correction_Needed' column from the DataFrame for the machine learning model
-    dataframe_ml = dataframe.drop(columns=['Correction_Needed'])
+    # Ensure 'Correction_Needed' column is present before dropping it
+    if 'Correction_Needed' in dataframe.columns:
+        # Remove 'Correction_Needed' column from the DataFrame for the machine learning model
+        dataframe_ml = dataframe.drop(columns=['Correction_Needed'])
+    else:
+        dataframe_ml = dataframe.copy()
 
     # Store the dataframe in the Flask app context for access in other routes
     app.config['DATAFRAME'] = dataframe
@@ -274,10 +330,19 @@ def process_answers():
 
     return 'Answers processed successfully!'
 
+@app.route('/apply_rules')
+def apply_rules_route():
+    with app.app_context():
+        apply_rules_to_database()
+    return 'Rules applied to the database successfully!'
+
 if __name__ == "__main__":
+    # Apply rules to the database during application startup
+    with app.app_context():
+        apply_rules_to_database()
+
     # Train the model during application startup
     with app.app_context():
-        # Access your dynamically created model
         data = YourTable.query.all()
         dataframe = pd.DataFrame([row.__dict__ for row in data])
         relationships_config = load_relationships_config()

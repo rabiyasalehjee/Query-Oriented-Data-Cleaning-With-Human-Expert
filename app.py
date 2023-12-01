@@ -58,59 +58,10 @@ def find_related_column(column, relationships):
             return relationship['related_column']
     return None
 
-'''def generate_questions(dataframe, relationships_config):
-    questions = []
-
-    # Step 1: Check Existing Data Against Rules
-    existing_data_errors = check_existing_data(dataframe)
-    if existing_data_errors:
-        for error_message in existing_data_errors:
-            question_text = f"{error_message} Do you want to correct it?"
-            question = {
-                'type': 'confirm',
-                'name': f'q_existing_data_correct',
-                'message': question_text,
-                'default': True,
-            }
-            questions.append(question)
-
-    # Step 2: Generate Questions for User
-    for index, row in dataframe.iterrows():
-        for relationship in relationships_config:
-            main_column = relationship['main_column']
-            related_column = relationship['related_column']
-
-            value = row[main_column]
-            related_value = row[related_column]
-
-            if pd.isnull(value):
-                # Question for missing data
-                question_text = f"The data in a related column is missing. It is related to '{related_column}' with value '{related_value}'. Do you want to modify the data?"
-                question = {
-                    'type': 'confirm',
-                    'name': f'q_{index}_{main_column}_missing',
-                    'message': question_text,
-                    'default': True,
-                }
-                questions.append(question)
-            else:
-                # Question for existing data
-                question_text = f"Is the '{main_column}' value '{value}' related to '{related_column}' with value '{related_value}' correct?"
-                question = {
-                    'type': 'confirm',
-                    'name': f'q_{index}_{main_column}_correct',
-                    'message': question_text,
-                    'default': True,
-                }
-                questions.append(question)
-
-    return questions'''
-
 # Function to check correction needed
 def check_correction_needed(row):
     """
     Check if correction is needed for a given row.
-    This is a placeholder function, and you should replace it with your actual logic.
     """
     # Example: Check if any value in the row is missing
     if any(pd.isnull(row)):
@@ -131,7 +82,7 @@ def check_existing_data(dataframe):
                 f"Existing data error: The 'Year' data for the year {row['Year']} is not an integer."
             )
 
-    # Add more checks for other columns as needed
+    # Add more checks for other columns later
 
     return existing_data_errors
 
@@ -195,7 +146,7 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
             # Check if either main or related value is missing or empty
             if pd.isnull(main_value) or main_value == '' or pd.isnull(related_value) or related_value == '':
                 # Generate the question for missing data
-                question_text = f"The data in '{main_column}' related to '{related_column}' with value '{related_value}' is missing or empty. Do you want to modify the data?"
+                question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
             else:
                 # Generate the question without mentioning "missing"
                 question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
@@ -215,8 +166,6 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
     print(f"Total questions generated: {question_count}")
     return questions
 
-
-
 def generate_question_for_relationship(row, relationship, relationships_config, prediction):
     # Get main column and related column from the relationship
     main_column = relationship['main_column']
@@ -232,33 +181,9 @@ def generate_question_for_relationship(row, relationship, relationships_config, 
         question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
     else:
         # If missing, generate a question explicitly mentioning "missing"
-        question_text = f"The data in '{main_column}' related to '{related_column}' with value '{related_value}' is missing or empty. Do you want to modify the data?"
+        question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
 
     return question_text
-
-
-'''def random_question(row, relationships, prediction):
-    # Randomly select a relationship
-    relationship = random.choice(relationships)
-
-    # Get main column and related column from the relationship
-    main_column = relationship['main_column']
-    related_column = relationship['related_column']
-
-    # Get values for the selected columns
-    main_value = row[main_column]
-    related_value = row[related_column]
-
-    # Check if the value is missing
-    if pd.isnull(main_value):
-        # If missing, generate a question explicitly mentioning "missing"
-        question_text = f"The '{main_column}' value for '{related_column}' with value '{related_value}' is missing. Do you want to modify the data? (Predicted: {'Yes' if prediction == 0 else 'No'})"
-    else:
-        # If not missing, generate the question without mentioning "missing"
-        question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
-
-    return question_text'''
-
 
 @app.route('/')
 def index():
@@ -278,18 +203,11 @@ def index():
     # Generate questions using machine learning model
     questions_ml = generate_questions_ml(dataframe, relationships_config, YourTable)
 
-    
     # Remove 'Correction_Needed' column from the DataFrame for the machine learning model
     dataframe_ml = dataframe.drop(columns=['Correction_Needed'])
 
     # Store the dataframe in the Flask app context for access in other routes
     app.config['DATAFRAME'] = dataframe
-
-    # Generate questions based on relationships configuration
-    #questions_rules = generate_questions(dataframe, relationships_config)
-
-    # Combine both sets of questions
-    #questions = questions_ml + questions_rules
 
     # Convert the Python list to JSON using json.dumps with double quotes
     pre_rendered_questions = json.dumps([
@@ -331,7 +249,7 @@ def generate_missing_data_questions(dataframe, relationships_config):
 
             if pd.isnull(main_value) or main_value == '' or pd.isnull(related_value) or related_value == '':
                 # Question for missing data
-                question_text = f"The data in '{main_column}' related to '{related_column}' with value '{related_value}' is missing or empty. Do you want to modify the data?"
+                question_text = f"The {related_column}: {related_value}_____ information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
                 missing_questions.append({
                     'type': 'confirm',
                     'name': f'q_{index}_{main_column}_missing',

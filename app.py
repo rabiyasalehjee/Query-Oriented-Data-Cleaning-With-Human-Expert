@@ -14,6 +14,7 @@ import json
 import random
 from rules import apply_rules
 
+
 pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
@@ -60,39 +61,20 @@ def find_related_column(column, relationships):
     return None
 
 def load_data_from_database():
-    # Assuming YourTable is a SQLAlchemy model
-    data = YourTable.query.all()
+    with app.app_context():  # Enter the application context
+        # Assuming YourTable is a SQLAlchemy model
+        data = YourTable.query.all()
 
-    # Extract relevant columns from the query result
-    columns_to_include = [column.key for column in YourTable.__table__.columns]
-    data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
+        # Extract relevant columns from the query result
+        columns_to_include = [column.key for column in YourTable.__table__.columns]
+        data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
 
-    # Convert the list of dictionaries to a DataFrame
-    dataframe = pd.DataFrame(data_dict_list)
+        # Convert the list of dictionaries to a DataFrame
+        dataframe = pd.DataFrame(data_dict_list)
 
-    return dataframe
+    return dataframe  # Exit the application context before returning
 
-# Function to apply rules to the database
-def apply_rules_to_database():
-    # Load data from the database
-    dataframe = load_data_from_database()
-
-    # Apply rules to clean the data
-    cleaned_dataframe = apply_rules(dataframe)
-
-    # Remove the internal SQLAlchemy column
-    cleaned_dataframe = cleaned_dataframe.drop('_sa_instance_state', axis=1, errors='ignore')
-
-    # Update the database with the cleaned data
-    update_database_with_cleaned_data(cleaned_dataframe, YourTable)
-
-    print("Data cleaning and update complete.")
-
-
-# Assuming primary key variations: "ID", "id", "Id"
-primary_key_variations = ["ID", "id", "Id"]
-
-def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
+def update_database_with_cleaned_data(cleaned_dataframe, YourTable, primary_key_variations):
     for index, row in cleaned_dataframe.iterrows():
         # Find the primary key column variation that exists in the DataFrame
         primary_key_column = next((col for col in primary_key_variations if col in row.index), None)
@@ -103,7 +85,6 @@ def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
 
     # Commit the changes to the database
     db.session.commit()
-
 
 # Function to check correction needed
 def check_correction_needed(row):
@@ -137,8 +118,6 @@ def check_existing_data(dataframe):
 def train_classification_model(dataframe, relationships_config):
     # Assume 'Correction_Needed' is a new column indicating whether correction is needed (1) or not (0)
     dataframe['Correction_Needed'] = dataframe.apply(lambda row: check_correction_needed(row), axis=1)
-
-    
 
     # Feature extraction
     features = dataframe.apply(lambda row: ' '.join([str(row[column]) for column in dataframe.columns]), axis=1)
@@ -333,15 +312,13 @@ def process_answers():
 @app.route('/apply_rules')
 def apply_rules_route():
     with app.app_context():
-        apply_rules_to_database()
+        # Use the function from rules.py
+        apply_rules.apply_rules_to_database()
     return 'Rules applied to the database successfully!'
 
 if __name__ == "__main__":
-    # Apply rules to the database during application startup
-    with app.app_context():
-        apply_rules_to_database()
+    # apply_rules_to_database()  # Comment out or remove this line
 
-    # Train the model during application startup
     with app.app_context():
         data = YourTable.query.all()
         dataframe = pd.DataFrame([row.__dict__ for row in data])

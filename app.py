@@ -325,4 +325,5 @@ if __name__ == "__main__":
         relationships_config = load_relationships_config()
         train_classification_model(dataframe, relationships_config)
 
-    app.run(debug=True)
+    app.run(debug=False, port=5001)
+

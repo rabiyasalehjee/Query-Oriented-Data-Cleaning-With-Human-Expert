@@ -19,6 +19,7 @@ class BaseModel(db.Model):
     __abstract__ = True
 
 def apply_rules_to_database():
+    global YourTable
     # YourTable is a SQLAlchemy model
     YourTable = create_model_class('db_messy')
 
@@ -26,7 +27,7 @@ def apply_rules_to_database():
     dataframe = load_data_from_database(YourTable)
 
     # Apply rules to clean the data and identify flagged values
-    _, flagged_values = apply_rules(dataframe)
+    _, flagged_values,  = apply_rules(dataframe)
 
 def load_data_from_database(YourTable):
     # YourTable is a SQLAlchemy model

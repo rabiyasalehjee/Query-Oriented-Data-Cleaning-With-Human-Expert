@@ -144,10 +144,10 @@ def train_classification_model(dataframe, relationships_config):
 # Function to generate questions using the machine learning model
 def generate_questions_ml(dataframe, relationships_config, YourTable):
     # Apply rules
-    dataframe = apply_rules(dataframe)
+    cleaned_dataframe, _ = apply_rules(dataframe)  # Unpack the tuple correctly
 
     # Train the classification model
-    classifier, vectorizer = train_classification_model(dataframe, relationships_config)
+    classifier, vectorizer = train_classification_model(cleaned_dataframe, relationships_config)
 
     questions = []
     question_count = 0
@@ -155,9 +155,9 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
     processed_rows = set()
 
     # Generate Questions for User
-    for index, row in dataframe.iterrows():
+    for index, row in cleaned_dataframe.iterrows():
         # Selecting all text columns for feature extraction
-        text_columns = [column for column in dataframe.columns if dataframe[column].dtype == 'O']
+        text_columns = [column for column in cleaned_dataframe.columns if cleaned_dataframe[column].dtype == 'O']
         feature_vector = vectorizer.transform([str(row[column]) for column in text_columns])
 
         # Predict using the trained model
@@ -209,7 +209,8 @@ def generate_question_for_relationship(row, relationship, relationships_config, 
     # Check if both main and related values are not missing
     if not (pd.isnull(main_value) or pd.isnull(related_value)):
         # If not missing, generate the question without mentioning "missing"
-        question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
+        #question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
+        question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data?"
     else:
         # If missing, generate a question explicitly mentioning "missing"
         question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
@@ -282,9 +283,18 @@ def generate_missing_data_questions(dataframe, relationships_config):
             main_value = row[main_column]
             related_value = row[related_column]
 
-            if pd.isnull(main_value) or main_value == '' or pd.isnull(related_value) or related_value == '':
-                # Question for missing data
-                question_text = f"The {related_column}: {related_value}_____ information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
+            if pd.isnull(related_value) or related_value == '':
+                # If related value is missing, generate a question explicitly mentioning "missing"
+                question_text = f"The {related_column}: _____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
+                missing_questions.append({
+                    'type': 'confirm',
+                    'name': f'q_{index}_{main_column}_missing',
+                    'message': question_text,
+                    'default': True,
+                })
+            elif pd.isnull(main_value) or main_value == '':
+                # If main value is missing, generate a question explicitly mentioning "missing"
+                question_text = f"The {related_column}: {related_value}  information for the {main_column}: _____ is missing. Do you want to modify the data?"
                 missing_questions.append({
                     'type': 'confirm',
                     'name': f'q_{index}_{main_column}_missing',
@@ -293,6 +303,7 @@ def generate_missing_data_questions(dataframe, relationships_config):
                 })
 
     return missing_questions
+
 
 @app.route('/process_answers', methods=['POST'])
 def process_answers():
@@ -326,4 +337,3 @@ if __name__ == "__main__":
         train_classification_model(dataframe, relationships_config)
 
     app.run(debug=False, port=5001)
-

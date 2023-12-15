@@ -180,8 +180,8 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
                 question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
             else:
                 # Generate the question without mentioning "missing"
-                question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
-
+                #question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
+                question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data?"
             question_count += 1
             question = {
                 'type': 'confirm',

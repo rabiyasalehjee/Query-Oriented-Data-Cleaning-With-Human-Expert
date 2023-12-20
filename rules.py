@@ -1,29 +1,32 @@
-import pandas as pd
-import pymysql
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Table, MetaData
+from flask import current_app
+from database_utils import *
 import json
 import numpy as np
 import datetime
-from flask import current_app
+import pandas as pd
+import pymysql
 
 pymysql.install_as_MySQLdb()
 
-app = Flask(__name__)
+'''app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost/query_data_cleaning'
-db = SQLAlchemy(app)
+db = SQLAlchemy(app)'''
 
 metadata = MetaData()
+
 
 class BaseModel(db.Model):
     __abstract__ = True
 
-def create_model_class(table_name):
-    global YourTable  
-    with app.app_context():  # Create tables within the application context
-        YourTable = create_model_class_internal(table_name)
-    return YourTable
+# Modify the FlaggedValues model to include the original_id column
+class FlaggedValues(BaseModel):
+    __tablename__ = 'flagged_values'
+    id = db.Column(db.Integer, primary_key=True)
+    original_id = db.Column(db.Integer, nullable=False)  # Add a column to store the original primary key ID
+    f_value = db.Column(db.String(255))  # Changed column name to 'f_value'
 
 def create_model_class_internal(table_name):
     table = Table(table_name, metadata, autoload_with=db.engine)
@@ -62,32 +65,12 @@ def get_primary_keys_for_flagged_values(dataframe, col, primary_key_col, flagged
         # Handle the case where primary_key_col is None
         return []
 
-def apply_rules_to_database():
-    global YourTable
-    # YourTable is a SQLAlchemy model
-    YourTable = create_model_class('db_messy')
-
-    # Load data from the database
-    dataframe = load_data_from_database(YourTable)
-
-    # Apply rules to clean the data and identify flagged values
-    cleaned_dataframe, flagged_values = apply_rules(dataframe)
-
-    # Save flagged values to a database table with primary keys
-    save_flagged_values_to_database(flagged_values, {}, cleaned_dataframe, YourTable)
-
-def load_data_from_database(YourTable):
-    # YourTable is a SQLAlchemy model
-    data = YourTable.query.all()
-
-    # Extract relevant columns from the query result
-    columns_to_include = [column.key for column in YourTable.__table__.columns]
-    data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
-
-    # Convert the list of dictionaries to a DataFrame
-    dataframe = pd.DataFrame(data_dict_list)
-    
-    return dataframe
+def apply_rules_to_database(YourTable):
+    with app.app_context():
+        dataframe = load_data_from_database()
+        cleaned_dataframe, flagged_values = apply_rules(dataframe, YourTable)
+        save_flagged_values_to_database(flagged_values, {}, cleaned_dataframe, YourTable)
+    print("Changes committed to the database")
 
 def flag_string_values_in_column(column, col_name):
     flagged_values = []
@@ -119,7 +102,7 @@ def flag_non_integer_values(column, col_name):
 
     return flagged_values
 
-def apply_rules(dataframe):
+def apply_rules(dataframe, YourTable):
     cleaned_dataframe = dataframe.copy()
     flagged_values = {col: [] for col in cleaned_dataframe.columns}
     primary_keys = {col: [] for col in cleaned_dataframe.columns}
@@ -181,12 +164,6 @@ def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_datafr
         db.session.commit()
         print("Changes committed to the database")
 
-# Modify the FlaggedValues model to include the original_id column
-class FlaggedValues(BaseModel):
-    __tablename__ = 'flagged_values'
-    id = db.Column(db.Integer, primary_key=True)
-    original_id = db.Column(db.Integer, nullable=False)  # Add a column to store the original primary key ID
-    f_value = db.Column(db.String(255))  # Changed column name to 'f_value'
 
 # Add the following line to set extend_existing=True
 db.Table('flagged_values', metadata, extend_existing=True)
@@ -197,7 +174,7 @@ with app.app_context():
     YourTable = create_model_class('db_messy')
 
     # Load data from the database
-    dataframe = load_data_from_database(YourTable)
+    dataframe = load_data_from_database()
 
     # Define primary_keys here before creating the table
     primary_keys = {col: [] for col in dataframe.columns}
@@ -205,7 +182,7 @@ with app.app_context():
     db.create_all()
 
     # Apply rules to clean the data and identify flagged values
-    cleaned_dataframe, flagged_values = apply_rules(dataframe)
+    cleaned_dataframe, flagged_values = apply_rules(dataframe, YourTable)
 
     # Iterate through the flagged values and save them to the database with original primary key ID
     for col_name, values in flagged_values.items():
@@ -236,12 +213,9 @@ def load_relationships_config():
         config = json.load(file)
     return config.get('relationships', [])
 
-# YourTable is a SQLAlchemy model
-YourTable = create_model_class('db_messy')
-
 # Load relationships configuration from JSON file
 relationships_config = load_relationships_config()
 
 # Apply rules to the database during application startup
 with app.app_context():
-    apply_rules_to_database()
+    apply_rules_to_database(YourTable)

@@ -8,6 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sqlalchemy.ext.declarative import declarative_base
+from database_utils import *
 import pandas as pd
 import pymysql
 import json
@@ -17,30 +18,6 @@ from rules import apply_rules
 
 pymysql.install_as_MySQLdb()
 
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost/query_data_cleaning'
-db = SQLAlchemy(app)
-
-metadata = MetaData()
-
-class BaseModel(db.Model):
-    __abstract__ = True
-
-YourTable = None
-
-def create_model_class(table_name):
-    global YourTable  # Declare YourTable as a global variable
-    with app.app_context():  # Create tables within the application context
-        YourTable = create_model_class_internal(table_name)
-    return YourTable
-
-def create_model_class_internal(table_name):
-    table = Table(table_name, metadata, autoload_with=db.engine)
-
-    class DynamicModel(BaseModel):
-        __table__ = table
-
-    return DynamicModel
 
 YourTable = create_model_class('db_messy')
 
@@ -53,6 +30,7 @@ def load_relationships_config():
         config = json.load(file)
     return config.get('relationships', [])
 
+
 # Find related column based on relationships configuration
 def find_related_column(column, relationships):
     for relationship in relationships:
@@ -60,19 +38,6 @@ def find_related_column(column, relationships):
             return relationship['related_column']
     return None
 
-def load_data_from_database():
-    with app.app_context():  # Enter the application context
-        # Assuming YourTable is a SQLAlchemy model
-        data = YourTable.query.all()
-
-        # Extract relevant columns from the query result
-        columns_to_include = [column.key for column in YourTable.__table__.columns]
-        data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
-
-        # Convert the list of dictionaries to a DataFrame
-        dataframe = pd.DataFrame(data_dict_list)
-
-    return dataframe  # Exit the application context before returning
 
 def update_database_with_cleaned_data(cleaned_dataframe, YourTable, primary_key_variations):
     for index, row in cleaned_dataframe.iterrows():
@@ -144,7 +109,7 @@ def train_classification_model(dataframe, relationships_config):
 # Function to generate questions using the machine learning model
 def generate_questions_ml(dataframe, relationships_config, YourTable):
     # Apply rules
-    cleaned_dataframe, _ = apply_rules(dataframe)  # Unpack the tuple correctly
+    cleaned_dataframe, _ = apply_rules(dataframe, YourTable)  # Unpack the tuple correctly
 
     # Train the classification model
     classifier, vectorizer = train_classification_model(cleaned_dataframe, relationships_config)
@@ -320,20 +285,20 @@ def process_answers():
 
     return 'Answers processed successfully!'
 
-@app.route('/apply_rules')
-def apply_rules_route():
+@app.route('/perform_database_operations')
+def perform_database_operations():
     with app.app_context():
-        # Use the function from rules.py
-        apply_rules.apply_rules_to_database()
-    return 'Rules applied to the database successfully!'
-
-if __name__ == "__main__":
-    # apply_rules_to_database()  # Comment out or remove this line
-
-    with app.app_context():
+        # Use the SQLAlchemy session from the 'db' instance
         data = YourTable.query.all()
         dataframe = pd.DataFrame([row.__dict__ for row in data])
         relationships_config = load_relationships_config()
         train_classification_model(dataframe, relationships_config)
+
+    return 'Database operations performed successfully!'
+
+if __name__ == "__main__":
+    # Apply rules to the database during application startup
+    with app.app_context():
+        apply_rules_to_database(YourTable)
 
     app.run(debug=False, port=5001)

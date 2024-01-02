@@ -39,3 +39,4 @@ File Structure
 - 'static/index_css.css': CSS styles for the user interface.
 - 'relationships_config.json': JSON file containing relationships configuration.
 - 'rules.py': Python script containing functions for applying rules and flagging incorrect values.
+- 'database_utils.py: Flask-based utility for dynamic model creation, data loading, and rule application in a MySQL database.

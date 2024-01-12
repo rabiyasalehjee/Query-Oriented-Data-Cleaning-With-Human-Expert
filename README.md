@@ -41,4 +41,5 @@ File Structure
 - 'rules.py': Python script containing functions for applying rules and flagging incorrect values.
 - 'database_utils.py: Flask-based utility for dynamic model creation, data loading, and rule application in a MySQL database.
 
-![Short Demo](https://github.com/rabiyasalehjee/Query-Oriented-Data-Cleaning-With-Human-Expert/assets/128058504/0e3af060-9650-4aa7-9aff-7ded11c8f453)
+### Demo
+https://github.com/rabiyasalehjee/Query-Oriented-Data-Cleaning-With-Human-Expert/blob/main/Short%20Demo.gif

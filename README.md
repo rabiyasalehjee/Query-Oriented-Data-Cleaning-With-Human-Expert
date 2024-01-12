@@ -42,4 +42,4 @@ File Structure
 - 'database_utils.py: Flask-based utility for dynamic model creation, data loading, and rule application in a MySQL database.
 
 ### Demo
-https://github.com/rabiyasalehjee/Query-Oriented-Data-Cleaning-With-Human-Expert/blob/main/Short%20Demo.gif
+![Animated GIF](https://github.com/rabiyasalehjee/Query-Oriented-Data-Cleaning-With-Human-Expert/blob/main/Short%20Demo.gif)

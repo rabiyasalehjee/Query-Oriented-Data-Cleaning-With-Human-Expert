@@ -40,41 +40,61 @@ button {
     cursor: pointer;
 }
 
-button:hover {
-    background-color: #45a049;
-}
-
-
-#next-question-btn {
+/* Styling for the index page buttons */
+#index-yes-btn,
+#index-no-btn,
+#index-back-btn {
+    margin-top: 20px;
     padding: 10px 20px;
     font-size: 16px;
+    border: none;
+    border-radius: 5px;
     cursor: pointer;
 }
 
-button#yes-btn {
-    background-color: #4caf50;
-    color: #fff;
-}
-
-button#no-btn {
-    background-color: #f44336;
-    color: #fff;
-}
-
-button#yes-btn:hover {
+#index-yes-btn:hover {
     background-color: #45a049;
 }
 
-button#no-btn:hover {
+#index-no-btn:hover {
     background-color: #d32f2f;
 }
 
-button#back-btn {
+#index-back-btn {
     background-color: #2196F3;
     color: #fff;
 }
 
-button#back-btn:hover {
+#index-back-btn:hover {
+    background-color: #0d8bf2;
+}
+
+/* Styling for the find_missing_values page buttons */
+#find-missing-yes-btn,
+#find-missing-no-btn,
+#find-missing-back-btn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#find-missing-yes-btn:hover {
+    background-color: #45a049;
+}
+
+#find-missing-no-btn:hover {
+    background-color: #d32f2f;
+}
+
+#find-missing-back-btn {
+    background-color: #2196F3;
+    color: #fff;
+}
+
+#find-missing-back-btn:hover {
     background-color: #0d8bf2;
 }
 
@@ -84,21 +104,6 @@ button#back-btn:hover {
     right: 10px;
     font-size: 14px;
     color: #777;
-}
-
-button#find-missing-btn {
-    background-color: #2196F3;
-    color: #fff;
-    margin-right: 10px;
-}
-
-button#find-missing-btn:hover {
-    background-color: #0d8bf2;
-}
-
-button#find-missing-btn:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
 }
 
 /* Styling for the question-container */

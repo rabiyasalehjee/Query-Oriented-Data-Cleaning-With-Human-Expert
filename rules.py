@@ -124,7 +124,8 @@ def apply_rules(dataframe, YourTable):
                     primary_key_col = get_primary_key(YourTable.__table__)
                     if primary_key_col is not None:
                         if primary_key_col in cleaned_dataframe.columns:
-                            primary_keys[col] = get_primary_keys_for_flagged_values(cleaned_dataframe, col, primary_key_col, flagged_values)
+                            primary_keys[col] = get_primary_keys_for_flagged_values(cleaned_dataframe, col,
+                                                                                   primary_key_col, flagged_values)
                         else:
                             primary_keys[col] = []
                     else:
@@ -140,6 +141,7 @@ def apply_rules(dataframe, YourTable):
             print(''.join([f"ID: '{primary_keys[key][i]}' column> {key}: '{values[i]}'\n" for i in range(len(values))]))
 
     return cleaned_dataframe, flagged_values
+
 
 # Save flagged values to a database table with primary keys
 def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable):

@@ -13,10 +13,15 @@
         <h1>Query Oriented Data Cleaning</h1>
         <div id="question-container"></div>
         <p id="question-count"></p>
-        <button id="yes-btn">Yes</button>
-        <button id="no-btn">No</button>
-        <button id="back-btn">Back</button>
-        <button id="find-missing-btn" onclick="window.location.href='/find_missing_values'">Find Missing Data Values</button>
+        <button id="index-yes-btn" class="action-btn">Yes</button>
+        <button id="index-no-btn" class="action-btn">No</button>
+        <button id="index-back-btn" class="action-btn">Back</button>
+        <button id="index-find-missing-btn" class="action-btn" onclick="window.location.href='/find_missing_values'">Find Missing Data Values</button>
+        <button id="find-missing-yes-btn" class="action-btn">Yes</button>
+        <button id="find-missing-no-btn" class="action-btn">No</button>
+        <button id="find-missing-back-btn" class="action-btn">Back</button>
+
+
     </div>
     <div id="queryModal" class="modal">
         <div class="modal-content">
@@ -28,35 +33,73 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            var preRenderedQuestions = {{ pre_rendered_questions | safe }};
-            var generatedQueries = [];
-            var missingQuestions = preRenderedQuestions.filter(question => question.message.toLowerCase().includes("missing"));
+        var preRenderedQuestions = {{ pre_rendered_questions | safe }};
+        var generatedQueries = [];
 
-            console.log('Pre-rendered questions:', preRenderedQuestions);
+        // Get the current URL
+        var currentUrl = window.location.href;
 
-            let currentQuestionIndex = 0;
-            let totalQuestions = preRenderedQuestions.length;
+        // Select buttons based on the current URL
+        const yesBtn = document.getElementById('index-yes-btn');
+        const noBtn = document.getElementById('index-no-btn');
+        const backBtn = document.getElementById('index-back-btn');
+        const findMissingBtn = document.getElementById('index-find-missing-btn');
 
-            const questionContainer = document.getElementById('question-container');
-            const yesBtn = document.getElementById('yes-btn');
-            const noBtn = document.getElementById('no-btn');
-            const backBtn = document.getElementById('back-btn');
-            const findMissingBtn = document.getElementById('find-missing-btn');
-            const questionCount = document.getElementById('question-count');
-            
+        // Select buttons for the find_missing_values page
+        const findMissingYesBtn = document.getElementById('find-missing-yes-btn');
+        const findMissingNoBtn = document.getElementById('find-missing-no-btn');
+        const findMissingBackBtn = document.getElementById('find-missing-back-btn');
 
-            function displayQuestion() {
-                if (currentQuestionIndex < totalQuestions) {
-                    console.log('Displaying question:', preRenderedQuestions[currentQuestionIndex]);
-                    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-                    questionContainer.innerHTML = `
-                        <label>${formatQuestionText(currentQuestion.message)}</label>
-                    `;
-                    updateQuestionCount();
-                } else {
-                    alert('All questions answered. Submitting form...');
-                }
-            }
+        // Check if on the find_missing_values page
+        if (currentUrl.includes('/find_missing_values')) {
+            // Hide buttons on the index page
+            yesBtn.style.display = 'none';
+            noBtn.style.display = 'none';
+            backBtn.style.display = 'none';
+            findMissingBtn.style.display = 'none';
+
+            // Show buttons on the find_missing_values page
+            findMissingYesBtn.style.display = 'inline-block';
+            findMissingNoBtn.style.display = 'inline-block';
+            findMissingBackBtn.style.display = 'inline-block';
+
+        } else {
+            // Show buttons on the index page
+            yesBtn.style.display = 'inline-block';
+            noBtn.style.display = 'inline-block';
+            backBtn.style.display = 'inline-block';
+            findMissingBtn.style.display = 'inline-block';
+
+            // Hide buttons on the find_missing_values page
+            findMissingYesBtn.style.display = 'none';
+            findMissingNoBtn.style.display = 'none';
+            findMissingBackBtn.style.display = 'none';
+        }
+
+        console.log('Pre-rendered questions:', preRenderedQuestions);
+
+        let currentQuestionIndex = 0;
+        let totalQuestions = preRenderedQuestions.length;
+
+        const questionContainer = document.getElementById('question-container');
+        const questionCount = document.getElementById('question-count');
+
+        
+        function displayQuestion() {
+    console.log('Executing displayQuestion');
+    
+    if (currentQuestionIndex < totalQuestions) {
+        console.log('Displaying question:', preRenderedQuestions[currentQuestionIndex]);
+        const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+        questionContainer.innerHTML = `
+            <label>${formatQuestionText(currentQuestion.message)}</label>
+        `;
+        updateQuestionCount();
+    } else {
+        alert('All questions answered. Submitting form...');
+    }
+}
+
 
             function formatQuestionText(questionText) {
                 // Replace single quotes around empty values with underscores
@@ -67,79 +110,147 @@
                 questionCount.textContent = `${currentQuestionIndex + 1} of ${totalQuestions}`;
             }
 
-            function updateGeneratedQueries() {
-                generatedQueriesList.innerHTML = '';
+            function answerYes_index() {
+        const modal = document.getElementById('queryModal');
+        modal.style.display = 'block';
 
-                generatedQueries.forEach((query, index) => {
-                    const listItem = document.createElement('li');
-                    listItem.textContent = `${index + 1}. ${query}`;
-                    generatedQueriesList.appendChild(listItem);
-                });
+        const submitQueryBtn = document.getElementById('submit-query-btn');
+        submitQueryBtn.addEventListener('click', function () {
+            const userQueryInput = document.getElementById('user-query-input');
+            const userQuery = userQueryInput.value.trim();
 
-                generatedQueriesContainer.style.display = generatedQueries.length > 0 ? 'block' : 'none';
+            if (userQuery !== '') {
+                // Extract question details from the current question
+                const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+
+                // Send the user-provided answer to the server
+                updateDatabaseWithAnswer(userQuery, currentQuestion);
+
+                // Clear the input field
+                userQueryInput.value = '';
+
+                // Close the modal
+                modal.style.display = 'none';
+            } else {
+                alert('Please provide a valid query.');
             }
+        });
 
-            function answerYes() {
-            const modal = document.getElementById('queryModal');
-            modal.style.display = 'block';
+        const closeModalBtn = document.getElementById('closeModal');
+        closeModalBtn.addEventListener('click', function () {
+            modal.style.display = 'none';
+        });
+    }
 
-            const submitQueryBtn = document.getElementById('submit-query-btn');
-            submitQueryBtn.addEventListener('click', function () {
-                const userQueryInput = document.getElementById('user-query-input');
-                const userQuery = userQueryInput.value.trim();
+            function findMissingPageAnswerYes() {
+        const modal = document.getElementById('queryModal');
+        modal.style.display = 'block';
 
-                if (userQuery !== '') {
-                    if (missingQuestions.length > 0) {
-                        missingQuestions.shift();
-                        updateMissingQuestions();
-                    } else {
-                        generatedQueries.push(userQuery);
-                        updateGeneratedQueries();
-                    }
+        const submitQueryBtn = document.getElementById('submit-query-btn');
+        submitQueryBtn.addEventListener('click', function () {
+            const userQueryInput = document.getElementById('user-query-input');
+            const userQuery = userQueryInput.value.trim();
 
+            if (userQuery !== '') {
+                // Extract question details from the current question
+                const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+
+                // Send the user-provided answer to the server
+                updateDatabaseWithAnswer(userQuery, currentQuestion);
+
+                // Clear the input field
+                userQueryInput.value = '';
+
+                // Close the modal
+                modal.style.display = 'none';
+            } else {
+                alert('Please provide a valid query.');
+            }
+        });
+
+        const closeModalBtn = document.getElementById('closeModal');
+        closeModalBtn.addEventListener('click', function () {
+            modal.style.display = 'none';
+        });
+    }
+
+            // Function to update the database with the provided answer
+            function updateDatabaseWithAnswer(userQuery, currentQuestion) {
+                const [_, rowId, mainColumn, relatedColumn] = currentQuestion.name.split('_');
+
+                // Dynamically extract the relatedColumn from the question text
+                const questionText = currentQuestion.message;
+                const relatedColumnMatch = questionText.match(/The (.*?):/);
+                const dynamicRelatedColumn = relatedColumnMatch ? relatedColumnMatch[1].trim() : null;
+
+                const data = {
+                    rowId: rowId,
+                    mainColumn: mainColumn,
+                    relatedColumn: dynamicRelatedColumn, // Use the dynamically extracted relatedColumn
+                    answer: userQuery,
+                };
+
+                // Send a POST request to the server to process the answer and update the database
+                fetch('/process_answers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+
+                    // Increment the currentQuestionIndex and display the next question
                     currentQuestionIndex++;
                     if (currentQuestionIndex < totalQuestions) {
                         displayQuestion();
                     } else {
-                        console.log('All questions answered. Submitting form...');
+                        alert('All questions answered. Submitting form...');
                     }
+                })
+                .catch(error => console.error(error));
+}
 
-                    modal.style.display = 'none';
-                } else {
-                    alert('Please provide a valid query.');
-                }
-            });
-
-            const closeModalBtn = document.getElementById('closeModal');
-            closeModalBtn.addEventListener('click', function () {
-                modal.style.display = 'none';
-            });
-
-            updateGeneratedQueries();
+            function answerNo_index() {
+                currentQuestionIndex++;
+                    if (currentQuestionIndex < totalQuestions) {
+                        displayQuestion();
+                    } else {
+                        alert('All questions answered. Submitting form...');
+                    }
+            
         }
 
-        function answerNo() {
-            currentQuestionIndex++;
-            if (currentQuestionIndex < totalQuestions) {
-                displayQuestion();
-            } else {
-                alert('All questions answered. Submitting form...');
-            }
-            updateGeneratedQueries();
-        }
+        function findMissingPageAnswerNo() {
+            answerNo_index();
+    
+}
 
-            function goBack() {
-                currentQuestionIndex--;
-                if (currentQuestionIndex >= 0) {
-                    displayQuestion();
-                } else {
-                    alert('No more previous questions.');
-                    currentQuestionIndex = 0;
+            function goBack_index() {
+                    currentQuestionIndex--;
+                    if (currentQuestionIndex >= 0) {
+                        displayQuestion();
+                    } else {
+                        alert('No more previous questions.');
+                        currentQuestionIndex = 0;
+                    }
+                    
                 }
-                updateGeneratedQueries();
-            }
-
-            function findMissingValues() {
+                
+            function findMissingPageGoBack() {
+                    currentQuestionIndex--;
+                    if (currentQuestionIndex >= 0) {
+                        displayQuestion();
+                    } else {
+                        alert('No more previous questions.');
+                        currentQuestionIndex = 0;
+                    }
+                    
+                }
+            
+                function findMissingValues() {
                 const filteredMissingQuestions = preRenderedQuestions.filter(question => {
                     const mainColumn = question.message.split("'")[1];
                     const mainColumnValue = row[mainColumn];
@@ -162,28 +273,60 @@
 
                 updateGeneratedQueries();
             }
-
-            yesBtn.addEventListener('click', function () {
-                answerYes();
-            });
-
-            noBtn.addEventListener('click', function () {
-                answerNo();
-            });
-
-            backBtn.addEventListener('click', function () {
-                goBack();
-            });
-
-            findMissingBtn.addEventListener('click', function () {
-                findMissingValues();
-            });
-
-            if (totalQuestions > 0) {
-                displayQuestion();
-            } else {
-                alert('No questions found.');
+            // Function to handle button clicks on the index page
+            function handleIndexPageButtonClick(buttonId) {
+                if (buttonId === 'yes') {
+                    answerYes_index();
+                } else if (buttonId === 'no') {
+                    answerNo_index();
+                } else if (buttonId === 'back') {
+                    goBack_index();
+                }
             }
+
+            function handleFindMissingPageButtonClick(buttonId) {
+                console.log('Button clicked:', buttonId);
+            // Function for handling button clicks on the find_missing_values page
+            if (buttonId === 'yes') {
+                findMissingPageAnswerYes();
+            } else if (buttonId === 'no') {
+                findMissingPageAnswerNo();
+            } else if (buttonId === 'back') {
+                findMissingPageGoBack();
+            }
+        }
+
+            // Event listeners for index page buttons
+            document.getElementById('index-yes-btn').addEventListener('click', function () {
+                handleIndexPageButtonClick('yes');
+            });
+
+            document.getElementById('index-no-btn').addEventListener('click', function () {
+                handleIndexPageButtonClick('no');
+            });
+
+            document.getElementById('index-back-btn').addEventListener('click', function () {
+                handleIndexPageButtonClick('back');
+            });
+
+            // Event listeners for find_missing_values page buttons
+            findMissingYesBtn.addEventListener('click', function () {
+                handleFindMissingPageButtonClick('yes');
+            });
+
+            findMissingNoBtn.addEventListener('click', function () {
+                handleFindMissingPageButtonClick('no');
+            });
+
+            findMissingBackBtn.addEventListener('click', function () {
+                handleFindMissingPageButtonClick('back');
+            });
+
+                if (totalQuestions > 0) {
+                    displayQuestion();
+                } else {
+                    alert('No questions found.');
+                }
         });
     </script>
 

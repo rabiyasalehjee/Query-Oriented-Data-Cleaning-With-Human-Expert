@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import inspect
@@ -13,13 +13,16 @@ import pandas as pd
 import pymysql
 import json
 import random
+import requests
 from rules import apply_rules
-
+from flask_cors import CORS
+from relationships import define_relationships
+from sqlalchemy import inspect
 
 pymysql.install_as_MySQLdb()
 
-
 YourTable = create_model_class('db_messy')
+define_relationships(config_file_path='relationships_config.json')
 
 with app.app_context():  # Create tables within the application context
     YourTable.__table__.create(bind=db.engine, checkfirst=True)
@@ -30,7 +33,6 @@ def load_relationships_config():
         config = json.load(file)
     return config.get('relationships', [])
 
-
 # Find related column based on relationships configuration
 def find_related_column(column, relationships):
     for relationship in relationships:
@@ -38,18 +40,23 @@ def find_related_column(column, relationships):
             return relationship['related_column']
     return None
 
-
 def update_database_with_cleaned_data(cleaned_dataframe, YourTable, primary_key_variations):
-    for index, row in cleaned_dataframe.iterrows():
-        # Find the primary key column variation that exists in the DataFrame
-        primary_key_column = next((col for col in primary_key_variations if col in row.index), None)
+    try:
+        for index, row in cleaned_dataframe.iterrows():
+            # Find the primary key column variation that exists in the DataFrame
+            primary_key_column = next((col for col in primary_key_variations if col in row.index), None)
 
-        if primary_key_column:
-            # Update the row in the database based on the found primary key column
-            db.session.query(YourTable).filter(getattr(YourTable, primary_key_column) == row[primary_key_column]).update(row.to_dict())
+            if primary_key_column:
+                # Update the row in the database based on the found primary key column
+                primary_key_value = row[primary_key_column]
+                print(f"Updating row with primary key {primary_key_column}={primary_key_value} in the database")
+                db.session.query(YourTable).filter(getattr(YourTable, primary_key_column) == primary_key_value).update(row.to_dict())
 
-    # Commit the changes to the database
-    db.session.commit()
+        # Commit the changes to the database
+        db.session.commit()
+        print("Changes committed to the database")
+    except Exception as e:
+        print(f"Error committing changes to the database: {e}")
 
 # Function to check correction needed
 def check_correction_needed(row):
@@ -121,8 +128,9 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
 
     # Generate Questions for User
     for index, row in cleaned_dataframe.iterrows():
-        # Selecting all text columns for feature extraction
-        text_columns = [column for column in cleaned_dataframe.columns if cleaned_dataframe[column].dtype == 'O']
+        # Dynamically fetch column names from the database
+        text_columns = [column.name for column in inspect(YourTable).columns]
+
         feature_vector = vectorizer.transform([str(row[column]) for column in text_columns])
 
         # Predict using the trained model
@@ -131,10 +139,23 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
         if index in processed_rows:
             continue
 
+        # Extract the primary key (ID) column name and value
+        primary_key_column = 'ID' 
+        row_id = row[primary_key_column]
+        #print(f"Generating question for row with primary key {primary_key_column}={row_id}")
+
         # Generate a question for each relationship
         for relationship in relationships_config:
             main_column = relationship['main_column']
             related_column = relationship['related_column']
+            question_name = f'q_{index}_ml_correct_{main_column}_{related_column}'
+
+            # Add the row ID to the question data
+            question_data = {
+                'row_id': row_id,  
+                'main_column': main_column,
+                'related_column': related_column,
+            }
 
             main_value = row[main_column]
             related_value = row[related_column]
@@ -145,14 +166,14 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
                 question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
             else:
                 # Generate the question without mentioning "missing"
-                #question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data? (Predicted: {'Yes' if prediction == 1 else 'No'})"
                 question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data?"
             question_count += 1
             question = {
                 'type': 'confirm',
-                'name': f'q_{index}_ml_correct_{relationship["main_column"]}',
+                'name': question_name,
                 'message': question_text,
                 'default': True,
+                'data': question_data,
             }
             questions.append(question)
 
@@ -210,6 +231,10 @@ def index():
     # Store the dataframe in the Flask app context for access in other routes
     app.config['DATAFRAME'] = dataframe
 
+    # Get the first question from the list to extract the primary key (ID) for display
+    first_question = questions_ml[0] if questions_ml else None
+    current_row_id = first_question['data']['row_id'] if first_question else None
+
     # Convert the Python list to JSON using json.dumps with double quotes
     pre_rendered_questions = json.dumps([
         {
@@ -218,14 +243,30 @@ def index():
         } for question in questions_ml
     ], ensure_ascii=False)
 
-    return render_template('index.html', pre_rendered_questions=pre_rendered_questions)
+    # Print the current row ID to the console
+    if current_row_id is not None:
+        print(f"Current row ID being displayed on the web interface: {current_row_id}")
+
+    return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
 
 @app.route('/find_missing_values')
 def find_missing_values():
     data = YourTable.query.all()
     dataframe = pd.DataFrame([row.__dict__ for row in data])
     relationships_config = load_relationships_config()
-    missing_questions = generate_missing_data_questions(dataframe, relationships_config)
+
+    # Get the current row ID from the URL parameters
+    current_row_id = request.args.get('current_row_id', None)
+
+    # Print the current row ID to the console
+    if current_row_id is not None:
+        print(f"Current row ID being displayed on the web interface: {current_row_id}")
+
+    missing_questions = generate_missing_data_questions(dataframe, relationships_config, current_row_id)
+
+    # Print generated questions and their row IDs to the console
+    for question in missing_questions:
+        print(f"Question: {question['message']}, Row ID: {question.get('data', {}).get('row_id', None)}")
 
     # Convert the Python list to JSON using json.dumps with double quotes
     pre_rendered_questions = json.dumps([
@@ -235,12 +276,16 @@ def find_missing_values():
         } for question in missing_questions
     ], ensure_ascii=False)
 
-    return render_template('index.html', pre_rendered_questions=pre_rendered_questions)
+    return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
 
-def generate_missing_data_questions(dataframe, relationships_config):
+def generate_missing_data_questions(dataframe, relationships_config, current_row_id):
     missing_questions = []
 
     for index, row in dataframe.iterrows():
+        # Check if the row ID matches the current_row_id, if provided
+        if current_row_id is not None and row['ID'] != current_row_id:
+            continue
+
         for relationship in relationships_config:
             main_column = relationship['main_column']
             related_column = relationship['related_column']
@@ -251,20 +296,17 @@ def generate_missing_data_questions(dataframe, relationships_config):
             if pd.isnull(related_value) or related_value == '':
                 # If related value is missing, generate a question explicitly mentioning "missing"
                 question_text = f"The {related_column}: _____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
+
+                # Extract the primary key (ID) column name and value
+                primary_key_column = 'ID' 
+                row_id = row[primary_key_column]
+
                 missing_questions.append({
                     'type': 'confirm',
                     'name': f'q_{index}_{main_column}_missing',
                     'message': question_text,
                     'default': True,
-                })
-            elif pd.isnull(main_value) or main_value == '':
-                # If main value is missing, generate a question explicitly mentioning "missing"
-                question_text = f"The {related_column}: {related_value}  information for the {main_column}: _____ is missing. Do you want to modify the data?"
-                missing_questions.append({
-                    'type': 'confirm',
-                    'name': f'q_{index}_{main_column}_missing',
-                    'message': question_text,
-                    'default': True,
+                    'data': {'row_id': row_id},  # Set the row_id in the question's data
                 })
 
     return missing_questions
@@ -272,18 +314,49 @@ def generate_missing_data_questions(dataframe, relationships_config):
 
 @app.route('/process_answers', methods=['POST'])
 def process_answers():
-    answers = request.form.to_dict()
-    dataframe = app.config['DATAFRAME']
+    try:
+        data = request.get_json()  # This will parse JSON data from the request
+        print(f"Received data: {data}")
 
-    for key, answer in answers.items():
-        index, _, _ = key.split('_')[1:]
-        index = int(index)
+        # Extract data from the JSON request, including the row ID
+        row_id = int(data.get('rowId', -1))  # Replace -1 with a default value if needed
+        main_column = data.get('mainColumn')
+        related_column = data.get('relatedColumn')
+        user_answer = data.get('answer')
+        print(f"Extracted data: row_id={row_id}, main_column={main_column}, related_column={related_column}, answer={user_answer}")
 
-        if answer.lower() == 'no':
-            print(f"Modify the data for the row at index {index}.")
-            # Perform the actual data modification using SQLAlchemy update statements
+        # Call the function to update the database
+        updateDatabaseWithAnswer(user_answer, YourTable, row_id, related_column, main_column)
 
-    return 'Answers processed successfully!'
+        # Return a JSON response indicating success
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        print(f"Error processing JSON: {e}")
+        # Return a JSON response indicating failure
+        return jsonify({"status": "error", "message": str(e)})
+
+# Function to update the database with the provided answer
+def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainColumn):
+    try:
+        # Convert rowId to integer if it's not already
+        rowId = int(rowId)
+
+        # Find the primary key column variation that exists in the DataFrame
+        primary_key_column = next((col for col in YourTable.__table__.columns.keys() if col.lower() == 'id'), None)
+
+        if primary_key_column:
+            # Update the row in the database based on the found primary key column
+            YourTable.query.filter(getattr(YourTable, primary_key_column) == rowId).update({relatedColumn: userQuery})
+
+            # Commit the changes to the database
+            db.session.commit()
+            print(f"Changes committed to the database")
+        else:
+            print("Primary key column not found in the table.")
+
+    except Exception as e:
+        print(f"Error updating the database: {e}")
 
 @app.route('/perform_database_operations')
 def perform_database_operations():

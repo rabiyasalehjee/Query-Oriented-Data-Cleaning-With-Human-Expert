@@ -3,17 +3,26 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import Table, MetaData
 import pandas as pd
+from flask_cors import CORS
+from sqlalchemy import create_engine, MetaData
 
 
 app = Flask(__name__)
+CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost/query_data_cleaning'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+
 migrate = Migrate(app, db)
 
 metadata = MetaData()
 
 class BaseModel(db.Model):
     __abstract__ = True
+
+def create_tables():
+    metadata.create_all(bind=engine)
 
 def create_model_class_internal(table_name):
     table = Table(table_name, metadata, autoload_with=db.engine)

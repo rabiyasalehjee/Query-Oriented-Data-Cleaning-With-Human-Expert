@@ -14,7 +14,7 @@ import pymysql
 import json
 import random
 import requests
-from rules import apply_rules
+from rules import apply_rules, apply_rules_to_database
 from flask_cors import CORS
 from relationships import define_relationships
 from sqlalchemy import inspect
@@ -121,7 +121,7 @@ def train_classification_model(dataframe, relationships_config):
 # Function to generate questions using the machine learning model
 def generate_questions_ml(dataframe, relationships_config, YourTable):
     # Apply rules
-    cleaned_dataframe, _ = apply_rules(dataframe, YourTable)  # Unpack the tuple correctly
+    cleaned_dataframe, flagged_values, primary_keys, column_datatypes  = apply_rules(dataframe, YourTable)# Unpack the tuple
 
     # Train the classification model
     classifier, vectorizer = train_classification_model(cleaned_dataframe, relationships_config)
@@ -255,7 +255,6 @@ def index():
 
     return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
 
-
 @app.route('/find_missing_values')
 def find_missing_values():
     data = YourTable.query.all()
@@ -324,6 +323,29 @@ def generate_missing_data_questions(dataframe, relationships_config, current_row
                 displayed_row_id_missing = row_id
     return missing_questions
 
+def generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes):
+    questions = []
+    for i, flagged_value in enumerate(flagged_values):
+        primary_key = primary_keys[i]
+        # Fetch the row from the database using the primary key
+        row = YourTable.query.filter_by(ID=primary_key).first()
+        if row:
+            # Iterate over each column to find and generate questions for all flagged values
+            for col_name, col_value in row.__dict__.items():
+                if col_value == flagged_value:
+                    datatype = column_datatypes.get(col_name, 'unknown datatype')
+                    rule_violation_text = (f"This value is violating the rules of the database; the expected value should be of {datatype} datatype.")
+                    #question_text = f"What is the correct value for the item with ID '{primary_key}' in column '{col_name}' which was flagged as '{flagged_value}'?"
+                    question_text = f"The value '{flagged_value}' in the '{col_name}' column is marked as flagged. Please provide accurate value."
+                    questions.append({"question": question_text, "rule_violation": rule_violation_text})
+    return questions
+
+@app.route('/show_flagged_values_questions')
+def show_flagged_values_questions():
+    flagged_values, primary_keys, column_datatypes = apply_rules_to_database(YourTable)
+    questions = generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes)
+    return jsonify({'questions': questions})
+
 @app.route('/log_current_row_id', methods=['POST'])
 def log_current_row_id():
     data = request.get_json()
@@ -371,8 +393,6 @@ def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainCol
         if primary_key_column:
             # Update the row in the database based on the found primary key column
             YourTable.query.filter(getattr(YourTable, primary_key_column) == rowId).update({relatedColumn: userQuery})
-
-            # Commit the changes to the database
             db.session.commit()
             print(f"Changes committed to the database")
         else:
@@ -395,6 +415,19 @@ def perform_database_operations():
 if __name__ == "__main__":
     # Apply rules to the database during application startup
     with app.app_context():
-        apply_rules_to_database(YourTable)
+        flagged_values, primary_keys, column_datatypes = apply_rules_to_database(YourTable)
 
+        # Store flagged values, primary keys, and column datatypes in the Flask application context
+        app.config['FLAGGED_VALUES'] = flagged_values
+        app.config['PRIMARY_KEYS'] = primary_keys
+        app.config['COLUMN_DATATYPES'] = column_datatypes
+        
+        # Print the flagged values with primary keys
+        print("\nShowing From App.py Flagged Values with their Primary Keys:")
+        for i in range(len(flagged_values)):
+            value = flagged_values[i]
+            primary_key = primary_keys[i]
+            print(f"ID: '{primary_key}' Value: '{value}'")
+
+    # Run the Flask app
     app.run(debug=False, port=5001)

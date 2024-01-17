@@ -69,6 +69,32 @@ button {
     background-color: #0d8bf2;
 }
 
+
+
+#show-flagged-values-no-btn,
+#show-flagged-values-back-btn,
+#submit-answer-btn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#show-flagged-values-no-btn:hover {
+    background-color: #d32f2f;
+}
+
+#show-flagged-values-back-btn {
+    background-color: #2196F3;
+    color: #fff;
+}
+
+#show-flagged-values-back-btn:hover {
+    background-color: #0d8bf2;
+}
+
 /* Styling for the find_missing_values page buttons */
 #find-missing-yes-btn,
 #find-missing-no-btn,
@@ -255,3 +281,12 @@ button {
     background-color: #45a049; 
     color: #fff; 
 }
+
+.tooltip-icon {
+    cursor: pointer;
+    width: 16px; /* or your preferred size */
+    height: 16px; /* or your preferred size */
+    vertical-align: middle;
+    margin-left: 5px;
+}
+

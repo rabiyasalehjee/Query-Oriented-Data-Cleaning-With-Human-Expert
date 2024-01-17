@@ -9,7 +9,7 @@ def define_relationships(config_file_path='relationships_config.json'):
     for relationship_info in relationships_config:
         main_column = relationship_info.get("main_column")
         related_column = relationship_info.get("related_column")
-        print(f"Main Column: {main_column}, Related Column: {related_column}")
+        print("")
 
         if main_column and related_column:
             main_column_name = main_column.capitalize() + 'Model'

@@ -43,7 +43,6 @@ def create_model_class_internal(table_name):
 
 def create_model_class(table_name):
     global YourTable
-    print("Entering create_model_class")
     with app.app_context():
         YourTable = create_model_class_internal(table_name)
     
@@ -72,6 +71,6 @@ def apply_rules_to_database(YourTable):
         dataframe = load_data_from_database()
         cleaned_dataframe, flagged_values = apply_rules(dataframe, YourTable)
         save_flagged_values_to_database(flagged_values, {}, cleaned_dataframe, YourTable)
-    print("Changes committed to the database")
+    
 
 

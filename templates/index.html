@@ -20,7 +20,8 @@
         <button id="find-missing-yes-btn" class="action-btn">Yes</button>
         <button id="find-missing-no-btn" class="action-btn">No</button>
         <button id="find-missing-back-btn" class="action-btn">Back</button>
-
+        <button id="show-flagged-values-btn" class="action-btn" onclick="window.location.href='/show_flagged_values_questions'">Show Flagged Values Question</button>
+        <button id="submit-answer-btn">Submit Answer</button>
 
     </div>
     <div id="queryModal" class="modal">
@@ -32,6 +33,7 @@
         </div>
     </div>
     <script>
+        let displayedRowIdMissing; // Variable to store the displayed row ID for missing data questions
         document.addEventListener('DOMContentLoaded', function () {
         var preRenderedQuestions = {{ pre_rendered_questions | safe }};
         var generatedQueries = [];
@@ -49,6 +51,9 @@
         const findMissingYesBtn = document.getElementById('find-missing-yes-btn');
         const findMissingNoBtn = document.getElementById('find-missing-no-btn');
         const findMissingBackBtn = document.getElementById('find-missing-back-btn');
+        
+        const submitAnswerBtn = document.getElementById('submit-answer-btn');
+        
 
         // Check if on the find_missing_values page
         if (currentUrl.includes('/find_missing_values')) {
@@ -57,6 +62,7 @@
             noBtn.style.display = 'none';
             backBtn.style.display = 'none';
             findMissingBtn.style.display = 'none';
+            submitAnswerBtn.style.display = 'none';
 
             // Show buttons on the find_missing_values page
             findMissingYesBtn.style.display = 'inline-block';
@@ -74,6 +80,7 @@
             findMissingYesBtn.style.display = 'none';
             findMissingNoBtn.style.display = 'none';
             findMissingBackBtn.style.display = 'none';
+            submitAnswerBtn.style.display = 'none';
         }
 
         console.log('Pre-rendered questions:', preRenderedQuestions);
@@ -84,22 +91,31 @@
         const questionContainer = document.getElementById('question-container');
         const questionCount = document.getElementById('question-count');
 
+        let displayedRowId; // Variable to store the displayed row ID
         
+
         function displayQuestion() {
     console.log('Executing displayQuestion');
-    
+
     if (currentQuestionIndex < totalQuestions) {
         console.log('Displaying question:', preRenderedQuestions[currentQuestionIndex]);
         const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+        displayedRowId = currentQuestion.row_id; // Store the row ID
         questionContainer.innerHTML = `
             <label>${formatQuestionText(currentQuestion.message)}</label>
         `;
         updateQuestionCount();
+
+        if (currentUrl.includes('/find_missing_values')) {
+            displayedRowIdMissing = currentQuestion.row_id; // Update displayedRowIdMissing for missing data questions
+        }
+
+        console.log(`Currently Displayed Row ID : ${displayedRowId}`);
+        console.log(`Currently Displayed Row ID (Missing Data): ${displayedRowIdMissing}`);
     } else {
         alert('All questions answered. Submitting form...');
     }
 }
-
 
             function formatQuestionText(questionText) {
                 // Replace single quotes around empty values with underscores
@@ -213,19 +229,42 @@
                 .catch(error => console.error(error));
 }
 
-            function answerNo_index() {
-                currentQuestionIndex++;
-                    if (currentQuestionIndex < totalQuestions) {
-                        displayQuestion();
-                    } else {
-                        alert('All questions answered. Submitting form...');
-                    }
-            
-        }
+function answerNo_index() {
+    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
 
-        function findMissingPageAnswerNo() {
-            answerNo_index();
-    
+    // Send a POST request to the server to log the current row ID
+    fetch('/log_current_row_id', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ row_id: currentQuestion.row_id }),  // Pass the current question's row_id
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Move to the next question
+        currentQuestionIndex++;
+
+        // Check if there are more questions before displaying
+        if (currentQuestionIndex < totalQuestions) {
+            displayQuestion();
+
+            
+        } else {
+            alert('All questions answered. Submitting form...');
+        }
+    })
+    .catch(error => console.error(error));
+}
+
+function findMissingPageAnswerNo() {
+    currentQuestionIndex++;
+    if (currentQuestionIndex < totalQuestions) {
+        displayQuestion();
+        console.log(`Missing Page Answer No : ${displayedRowIdMissing}`);
+    } else {
+        alert('All questions answered. Submitting form...');
+    }
 }
 
             function goBack_index() {
@@ -273,6 +312,44 @@
 
                 updateGeneratedQueries();
             }
+            
+            function showFlaggedValuesQuestions() {
+    console.log('Show Flagged Values button clicked');
+
+    // Make an AJAX request to fetch flagged values questions
+    fetch('/show_flagged_values_questions', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        const flaggedValuesQuestions = data.questions;
+
+        // Update the question container with flagged values questions
+        questionContainer.innerHTML = ''; // Clear existing content
+
+        // Iterate through flagged values questions and append to the question container
+        flaggedValuesQuestions.forEach(question => {
+            const questionElement = document.createElement('p');
+            questionElement.textContent = question;
+            questionContainer.appendChild(questionElement);
+        });
+
+        // Hide other buttons on the flagged values page
+        yesBtn.style.display = 'none';
+        noBtn.style.display = 'none';
+        backBtn.style.display = 'none';
+        findMissingBtn.style.display = 'none';
+        findMissingYesBtn.style.display = 'none';
+        findMissingNoBtn.style.display = 'none';
+        findMissingBackBtn.style.display = 'none';
+        submitAnswerBtn.style.display = 'inline-block';
+    })
+    .catch(error => console.error(error));
+}
+
             // Function to handle button clicks on the index page
             function handleIndexPageButtonClick(buttonId) {
                 if (buttonId === 'yes') {
@@ -285,7 +362,6 @@
             }
 
             function handleFindMissingPageButtonClick(buttonId) {
-                console.log('Button clicked:', buttonId);
             // Function for handling button clicks on the find_missing_values page
             if (buttonId === 'yes') {
                 findMissingPageAnswerYes();
@@ -295,6 +371,26 @@
                 findMissingPageGoBack();
             }
         }
+            
+// Function to handle button click on the flagged values page
+function handleFlaggedValuesButtonClick(buttonId) {
+    if (buttonId === 'submit-answer') {
+        console.log('Submitting flagged values answers');
+    }
+}
+
+//Event listener for the 'Submit Answer' button on flagged values page
+document.getElementById('submit-answer-btn').addEventListener('click', function () {
+    console.log('Submit button clicked');
+    handleFlaggedValuesButtonClick('submit-answer');
+});
+
+            // Event listener for the 'Show Flagged Values' button
+            document.getElementById('show-flagged-values-btn').addEventListener('click', function(){
+                showFlaggedValuesQuestions();
+                console.log('FROM INDEX Flagged Values Questions:', flaggedValuesQuestions);
+
+            });
 
             // Event listeners for index page buttons
             document.getElementById('index-yes-btn').addEventListener('click', function () {

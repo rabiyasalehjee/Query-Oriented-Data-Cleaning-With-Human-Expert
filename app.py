@@ -33,6 +33,11 @@ def load_relationships_config():
         config = json.load(file)
     return config.get('relationships', [])
 
+def fetch_data_with_primary_key():
+    # Fetch data including primary key
+    data_with_primary_key = YourTable.query.all()
+    return data_with_primary_key
+
 # Find related column based on relationships configuration
 def find_related_column(column, relationships):
     for relationship in relationships:
@@ -163,10 +168,10 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
             # Check if either main or related value is missing or empty
             if pd.isnull(main_value) or main_value == '' or pd.isnull(related_value) or related_value == '':
                 # Generate the question for missing data
-                question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
+                question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing (Row ID: {row_id}). Do you want to modify the data?"
             else:
                 # Generate the question without mentioning "missing"
-                question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data?"
+                question_text = f"The {main_column}: {main_value} has {related_value} as {related_column} (Row ID: {row_id}). Do you want to modify the data?"
             question_count += 1
             question = {
                 'type': 'confirm',
@@ -239,15 +244,17 @@ def index():
     pre_rendered_questions = json.dumps([
         {
             "name": question["name"],
-            "message": question["message"].strip().replace('"', '\\"')  # Escape double quotes
+            "message": question["message"].strip().replace('"', '\\"'),  # Escape double quotes
+            "row_id": question.get('data', {}).get('row_id', None)  # Include row_id in the question
         } for question in questions_ml
     ], ensure_ascii=False)
 
     # Print the current row ID to the console
     if current_row_id is not None:
-        print(f"Current row ID being displayed on the web interface: {current_row_id}")
+        print("\n")
 
     return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
+
 
 @app.route('/find_missing_values')
 def find_missing_values():
@@ -260,13 +267,13 @@ def find_missing_values():
 
     # Print the current row ID to the console
     if current_row_id is not None:
-        print(f"Current row ID being displayed on the web interface: {current_row_id}")
+        print(f"From App Find Missing Function: {current_row_id}")
 
     missing_questions = generate_missing_data_questions(dataframe, relationships_config, current_row_id)
 
     # Print generated questions and their row IDs to the console
-    for question in missing_questions:
-        print(f"Question: {question['message']}, Row ID: {question.get('data', {}).get('row_id', None)}")
+    #for question in missing_questions:
+    #   print(f"Question: {question['message']}, Row ID: {question.get('data', {}).get('row_id', None)}")
 
     # Convert the Python list to JSON using json.dumps with double quotes
     pre_rendered_questions = json.dumps([
@@ -278,7 +285,12 @@ def find_missing_values():
 
     return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
 
+displayed_row_id_missing = None
+
 def generate_missing_data_questions(dataframe, relationships_config, current_row_id):
+    
+    global displayed_row_id_missing
+    
     missing_questions = []
 
     for index, row in dataframe.iterrows():
@@ -295,7 +307,7 @@ def generate_missing_data_questions(dataframe, relationships_config, current_row
 
             if pd.isnull(related_value) or related_value == '':
                 # If related value is missing, generate a question explicitly mentioning "missing"
-                question_text = f"The {related_column}: _____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
+                question_text = f"The {related_column}: _____  information for the {main_column}: {main_value} is missing (Row ID: {row['ID']}). Do you want to modify the data?"
 
                 # Extract the primary key (ID) column name and value
                 primary_key_column = 'ID' 
@@ -308,9 +320,20 @@ def generate_missing_data_questions(dataframe, relationships_config, current_row
                     'default': True,
                     'data': {'row_id': row_id},  # Set the row_id in the question's data
                 })
-
+                # Store the displayed row ID
+                displayed_row_id_missing = row_id
     return missing_questions
 
+@app.route('/log_current_row_id', methods=['POST'])
+def log_current_row_id():
+    data = request.get_json()
+    row_id = data.get('row_id', None)
+
+    if row_id is not None:
+        # Log the row ID to the server console
+        print("")
+
+    return jsonify({'success': True})
 
 @app.route('/process_answers', methods=['POST'])
 def process_answers():

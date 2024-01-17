@@ -40,3 +40,6 @@ File Structure
 - 'relationships_config.json': JSON file containing relationships configuration.
 - 'rules.py': Python script containing functions for applying rules and flagging incorrect values.
 - 'database_utils.py: Flask-based utility for dynamic model creation, data loading, and rule application in a MySQL database.
+
+### Demo
+![Animated GIF](https://github.com/rabiyasalehjee/Query-Oriented-Data-Cleaning-With-Human-Expert/blob/main/Short%20Demo.gif)

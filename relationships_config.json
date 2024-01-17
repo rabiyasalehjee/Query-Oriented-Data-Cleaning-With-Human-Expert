@@ -5,6 +5,8 @@
     {"main_column": "Year", "related_column": "Runner_Up"},
     {"main_column": "Year", "related_column": "Third_Place"},
     {"main_column": "Year", "related_column": "Matches_Played"},
-    {"main_column": "Year", "related_column": "Goals_Scored"}  
+    {"main_column": "Year", "related_column": "Goals_Scored"},
+    {"main_column": "Year", "related_column": "Date"}
+
   ]
 }

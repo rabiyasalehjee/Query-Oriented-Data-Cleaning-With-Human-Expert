@@ -49,7 +49,7 @@ def create_model_class(table_name):
     return YourTable
 
 YourTable = None
-create_model_class('db_messy')  # Replace 'your_table_name' with the actual table name
+create_model_class('db_messy') 
 
 def load_data_from_database():
     with app.app_context():  # Enter the application context
@@ -69,8 +69,5 @@ def apply_rules_to_database(YourTable):
     with app.app_context():
         from rules import apply_rules, save_flagged_values_to_database
         dataframe = load_data_from_database()
-        cleaned_dataframe, flagged_values = apply_rules(dataframe, YourTable)
+        cleaned_dataframe, flagged_values, primary_keys = apply_rules(dataframe, YourTable)
         save_flagged_values_to_database(flagged_values, {}, cleaned_dataframe, YourTable)
-    
-
-

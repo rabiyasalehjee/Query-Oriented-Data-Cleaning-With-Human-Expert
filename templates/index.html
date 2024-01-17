@@ -20,9 +20,10 @@
         <button id="find-missing-yes-btn" class="action-btn">Yes</button>
         <button id="find-missing-no-btn" class="action-btn">No</button>
         <button id="find-missing-back-btn" class="action-btn">Back</button>
-        <button id="show-flagged-values-btn" class="action-btn" onclick="window.location.href='/show_flagged_values_questions'">Show Flagged Values Question</button>
+        <button id="show-flagged-values-btn" class="action-btn">Show Flagged Values Question</button>
+        <button id="show-flagged-values-no-btn" class="action-btn">Next Question</button>
+        <button id="show-flagged-values-back-btn" class="action-btn">Back</button>
         <button id="submit-answer-btn">Submit Answer</button>
-
     </div>
     <div id="queryModal" class="modal">
         <div class="modal-content">
@@ -51,10 +52,13 @@
         const findMissingYesBtn = document.getElementById('find-missing-yes-btn');
         const findMissingNoBtn = document.getElementById('find-missing-no-btn');
         const findMissingBackBtn = document.getElementById('find-missing-back-btn');
-        
+
+        // Select buttons for the show_flagged_values page
+        const flaggedValue = document.getElementById('show-flagged-values-btn');
+        const flaggedValuesnoBtn = document.getElementById('show-flagged-values-no-btn');
+        const flaggedValuesbackBtn = document.getElementById('show-flagged-values-back-btn');
         const submitAnswerBtn = document.getElementById('submit-answer-btn');
         
-
         // Check if on the find_missing_values page
         if (currentUrl.includes('/find_missing_values')) {
             // Hide buttons on the index page
@@ -68,6 +72,8 @@
             findMissingYesBtn.style.display = 'inline-block';
             findMissingNoBtn.style.display = 'inline-block';
             findMissingBackBtn.style.display = 'inline-block';
+            flaggedValuesnoBtn.style.display = 'none';
+            flaggedValuesbackBtn.style.display = 'none';
 
         } else {
             // Show buttons on the index page
@@ -81,6 +87,8 @@
             findMissingNoBtn.style.display = 'none';
             findMissingBackBtn.style.display = 'none';
             submitAnswerBtn.style.display = 'none';
+            flaggedValuesnoBtn.style.display = 'none';
+            flaggedValuesbackBtn.style.display = 'none';
         }
 
         console.log('Pre-rendered questions:', preRenderedQuestions);
@@ -93,17 +101,36 @@
 
         let displayedRowId; // Variable to store the displayed row ID
         
-
         function displayQuestion() {
     console.log('Executing displayQuestion');
 
     if (currentQuestionIndex < totalQuestions) {
         console.log('Displaying question:', preRenderedQuestions[currentQuestionIndex]);
         const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-        displayedRowId = currentQuestion.row_id; // Store the row ID
-        questionContainer.innerHTML = `
-            <label>${formatQuestionText(currentQuestion.message)}</label>
-        `;
+
+        // Determine whether we're dealing with a flagged value question or not
+        if (currentQuestion.hasOwnProperty('question')) {
+            // For flagged value questions
+            displayedRowId = currentQuestion.row_id; // Store the row ID
+            questionContainer.innerHTML = `<label>${formatQuestionText(currentQuestion.question)}</label>`;
+        } else {
+            // For other question types (assuming 'message' field contains the question text)
+            displayedRowId = currentQuestion.row_id; // Store the row ID
+            questionContainer.innerHTML = `<label>${formatQuestionText(currentQuestion.message)}</label>`;
+        }
+
+        // Add tooltip for rule violation text if it exists
+        if (currentQuestion.hasOwnProperty('rule_violation') && currentQuestion.rule_violation) {
+            const ruleViolationText = currentQuestion.rule_violation;
+            const tooltip = document.createElement('img');
+            tooltip.src = 'http://localhost/project/templates/info.png';
+            tooltip.className = 'tooltip-icon';
+            tooltip.alt = 'Info';
+            tooltip.title = ruleViolationText; // Tooltip text
+            const questionLabel = questionContainer.querySelector('label');
+            questionLabel.appendChild(tooltip);
+        }
+
         updateQuestionCount();
 
         if (currentUrl.includes('/find_missing_values')) {
@@ -118,12 +145,11 @@
 }
 
             function formatQuestionText(questionText) {
-                // Replace single quotes around empty values with underscores
                 return questionText.replace(/''/g, '_______');
             }
 
             function updateQuestionCount() {
-                questionCount.textContent = `${currentQuestionIndex + 1} of ${totalQuestions}`;
+                questionCount.textContent = `${currentQuestionIndex + 1} of ${preRenderedQuestions.length}`;
             }
 
             function answerYes_index() {
@@ -248,8 +274,6 @@ function answerNo_index() {
         // Check if there are more questions before displaying
         if (currentQuestionIndex < totalQuestions) {
             displayQuestion();
-
-            
         } else {
             alert('All questions answered. Submitting form...');
         }
@@ -386,11 +410,45 @@ document.getElementById('submit-answer-btn').addEventListener('click', function 
 });
 
             // Event listener for the 'Show Flagged Values' button
-            document.getElementById('show-flagged-values-btn').addEventListener('click', function(){
-                showFlaggedValuesQuestions();
-                console.log('FROM INDEX Flagged Values Questions:', flaggedValuesQuestions);
+            document.getElementById('show-flagged-values-btn').addEventListener('click', function() {
+    fetch('/show_flagged_values_questions', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update to use the correct structure for the questions
+        const flaggedValuesQuestions = data.questions.map(question => ({
+            question: question.question, // Assuming 'question' contains the question text
+            rule_violation: question.rule_violation, // Rule violation text
+            name: `flagged_value_question_${question.row_id}`, // Unique identifier for each question
+            row_id: question.row_id // Row ID if available
+        }));
 
-            });
+        // Update preRenderedQuestions with the new data
+        preRenderedQuestions = flaggedValuesQuestions;
+        // Reset the current question index and display the first question
+        currentQuestionIndex = 0;
+        displayQuestion();
+    })
+    .catch(error => console.error(error));
+
+    // Hide other buttons and show necessary ones for flagged values questions
+    yesBtn.style.display = 'none';
+    noBtn.style.display = 'none';
+    backBtn.style.display = 'none';
+    findMissingBtn.style.display = 'none';
+    findMissingYesBtn.style.display = 'none';
+    findMissingNoBtn.style.display = 'none';
+    findMissingBackBtn.style.display = 'none';
+    flaggedValue.style.display = 'none';
+
+    flaggedValuesnoBtn.style.display = 'inline-block';
+    flaggedValuesbackBtn.style.display = 'inline-block';
+    submitAnswerBtn.style.display = 'inline-block';
+});
 
             // Event listeners for index page buttons
             document.getElementById('index-yes-btn').addEventListener('click', function () {
@@ -403,6 +461,25 @@ document.getElementById('submit-answer-btn').addEventListener('click', function 
 
             document.getElementById('index-back-btn').addEventListener('click', function () {
                 handleIndexPageButtonClick('back');
+            });
+
+            document.getElementById('show-flagged-values-no-btn').addEventListener('click', function () {
+                currentQuestionIndex++;
+                if (currentQuestionIndex < preRenderedQuestions.length) {
+                    displayQuestion();
+                } else {
+                    alert('All questions answered.');
+                }
+            });
+            
+            document.getElementById('show-flagged-values-back-btn').addEventListener('click', function () {
+                currentQuestionIndex--;
+                if (currentQuestionIndex >= 0) {
+                    displayQuestion();
+                } else {
+                    alert('No previous questions.');
+                    currentQuestionIndex = 0; // Reset to the first question
+                }
             });
 
             // Event listeners for find_missing_values page buttons

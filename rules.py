@@ -166,6 +166,7 @@ def apply_rules(dataframe, YourTable):
         if column_datatypes[col] == 'date':
             flagged_values[col].extend(flag_invalid_dates(cleaned_dataframe[col], col))
 
+<<<<<<< HEAD
         # Get primary keys for the flagged values
         primary_key_col = get_primary_key(YourTable.__table__)
         if primary_key_col is not None:
@@ -177,15 +178,21 @@ def apply_rules(dataframe, YourTable):
         else:
             primary_keys[col] = []
 
+=======
+>>>>>>> d59915327766d18ca1b2f0ddab4d98b01bf70fa2
     # Print flagged values, primary keys, and datatypes
     print("\nFlagged Values with their Primary Keys and Datatypes:")
     for key, values in flagged_values.items():
         if values:
             for i, value in enumerate(values):
                 print(f"ID: '{primary_keys[key][i]}' column> {key}: '{value}', Datatype: '{column_datatypes[key]}'")
+<<<<<<< HEAD
 
     return cleaned_dataframe, flagged_values, primary_keys, column_datatypes
+=======
+>>>>>>> d59915327766d18ca1b2f0ddab4d98b01bf70fa2
 
+    return cleaned_dataframe, flagged_values, primary_keys, column_datatypes
 
 # Save flagged values to a database table with primary keys
 def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable):

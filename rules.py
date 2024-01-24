@@ -9,6 +9,8 @@ import json
 import numpy as np
 import pandas as pd
 import pymysql
+import re
+from datetime import datetime
 
 pymysql.install_as_MySQLdb()
 
@@ -16,6 +18,46 @@ metadata = MetaData()
 
 class BaseModel(db.Model):
     __abstract__ = True
+
+def correct_date_format(value):
+    """Corrects the date format to YYYY-MM-DD if possible, otherwise returns the original value."""
+    try:
+        return pd.to_datetime(value).strftime('%Y-%m-%d')
+    except:
+        return value
+
+def capitalize_string_values(value):
+    """Capitalizes the first letter of each word in a string."""
+    if isinstance(value, str):
+        return ' '.join(word.capitalize() for word in re.split(' |_|-|!', value))
+    else:
+        return value
+
+
+def replace_null_with_none(value):
+    """Replaces null or empty cells with 'None'."""
+    if pd.isna(value) or value == '':
+        return 'None'
+    else:
+        return value
+
+def apply_date_format_rule(dataframe):
+    """Applies the date format rule to the dataframe."""
+    for col in dataframe.columns:
+        if infer_datatype(dataframe[col]) == 'date':
+            dataframe[col] = dataframe[col].apply(correct_date_format)
+
+def apply_capitalization_rule(dataframe):
+    """Applies the capitalization rule to the dataframe."""
+    for col in dataframe.columns:
+        if dataframe[col].dtype == 'O':  # Object type typically indicates string in pandas
+            dataframe[col] = dataframe[col].apply(capitalize_string_values)
+
+def apply_null_replacement_rule(dataframe):
+    """Replaces 'None' values with empty string in the dataframe."""
+    for col in dataframe.columns:
+        dataframe[col] = dataframe[col].apply(lambda x: '' if x == 'None' else x)
+
 
 def infer_datatype(column):
     # Count occurrences of each data type
@@ -93,6 +135,7 @@ def apply_rules_to_database(YourTable):
     with app.app_context():
         dataframe = load_data_from_database()
         cleaned_dataframe, flagged_values, primary_keys, column_datatypes = apply_rules(dataframe, YourTable)
+        update_database_with_cleaned_data(cleaned_dataframe, YourTable)
         save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable)
     print("Changes committed to the database from apply_rules_to_database")
     # Filter and flatten flagged values and primary keys
@@ -108,45 +151,41 @@ def apply_rules_to_database(YourTable):
 
 def flag_string_values_in_column(column, col_name):
     flagged_values = []
-
     for value in column:
-        if pd.notna(value) and value != '' and not isinstance(value, time):
-            # Skip if value is NaN, None, or empty string, or any datetime values
+        if pd.notna(value) and value != '' and not isinstance(value, time) and value != 'None':
             try:
-                # Try to convert each non-null, non-empty value to an integer
                 pd.to_numeric(value, errors='raise', downcast='integer')
             except (ValueError, TypeError):
-                # If conversion fails, the value is not an integer and should be flagged
                 flagged_values.append(value)
-
     return flagged_values
 
 def flag_non_integer_values(column, col_name):
     flagged_values = []
-
-    # Exclude empty, null, None, or NaN values from counting
-    non_empty_column = column[pd.notna(column) & (column != '')]
-
-    # Count the number of non-null numeric values
+    non_empty_column = column[pd.notna(column) & (column != '') & (column != 'None')]
     numeric_count = non_empty_column.apply(lambda x: pd.to_numeric(x, errors='coerce')).notna().sum()
-
-    # If the majority of values are numeric, treat the column as an integer column
     if numeric_count / non_empty_column.size > 0.5:
         flagged_values.extend(flag_string_values_in_column(column, col_name))
-
     return flagged_values
 
 def flag_invalid_dates(column, col_name):
     flagged_values = []
     for value in column:
-        if pd.notna(value) and value != '':
+        if pd.notna(value) and value != '' and value != 'None':
+            # Replace spaces with hyphens to standardize the format
+            standardized_value = value.replace(' ', '-')
             try:
-                pd.to_datetime(value, format='%Y-%m-%d', errors='raise')
-            except (ValueError, TypeError):
+                # Check if the date is in YYYY-MM-DD format after standardization
+                datetime.strptime(standardized_value, '%Y-%m-%d')
+            except ValueError:
+                # Flag the date if it's not in the correct format
                 flagged_values.append(value)
     return flagged_values
 
 def apply_rules(dataframe, YourTable):
+    # Apply capitalization and null replacement rules
+    apply_capitalization_rule(dataframe)
+    apply_null_replacement_rule(dataframe)
+
     cleaned_dataframe = dataframe.copy()
     flagged_values = {col: [] for col in cleaned_dataframe.columns}
     primary_keys = {col: [] for col in cleaned_dataframe.columns}
@@ -162,21 +201,22 @@ def apply_rules(dataframe, YourTable):
                 if numeric_values_exist:
                     flagged_values[col] = flag_string_values_in_column(cleaned_dataframe[col], col)
 
-        # Check for date columns and flag invalid dates
+        # Check for date columns, standardize format and flag invalid dates
         if column_datatypes[col] == 'date':
+            cleaned_dataframe[col] = cleaned_dataframe[col].apply(lambda x: standardize_date_format(x) if pd.notna(x) else x)
             flagged_values[col].extend(flag_invalid_dates(cleaned_dataframe[col], col))
 
         # Get primary keys for the flagged values
         primary_key_col = get_primary_key(YourTable.__table__)
         if primary_key_col is not None:
             if primary_key_col in cleaned_dataframe.columns:
-                primary_keys[col] = get_primary_keys_for_flagged_values(cleaned_dataframe, col,
-                                                                       primary_key_col, flagged_values)
+                primary_keys[col] = get_primary_keys_for_flagged_values(cleaned_dataframe, col, primary_key_col, flagged_values)
             else:
                 primary_keys[col] = []
         else:
             primary_keys[col] = []
 
+    
     # Print flagged values, primary keys, and datatypes
     print("\nFlagged Values with their Primary Keys and Datatypes:")
     for key, values in flagged_values.items():
@@ -185,6 +225,15 @@ def apply_rules(dataframe, YourTable):
                 print(f"ID: '{primary_keys[key][i]}' column> {key}: '{value}', Datatype: '{column_datatypes[key]}'")
 
     return cleaned_dataframe, flagged_values, primary_keys, column_datatypes
+
+def standardize_date_format(date_value):
+    """Standardizes date formats by adding hyphens."""
+    if isinstance(date_value, str):
+        # Replace spaces with hyphens to standardize the format
+        return date_value.replace(' ', '-')
+    return date_value
+
+
 
 # Save flagged values to a database table with primary keys
 def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable):
@@ -246,8 +295,20 @@ with app.app_context():
     print("Changes committed to the databasefrom app.app_context")
 
 def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
-    # Do nothing in this function except commit changes
-    db.session.commit()
+    with app.app_context():
+        primary_key_col = get_primary_key(YourTable.__table__)
+        if primary_key_col is None:
+            print("Primary key column not found.")
+            return
+
+        for index, row in cleaned_dataframe.iterrows():
+            # Retrieve the record using the primary key with the new method
+            record = db.session.get(YourTable, row[primary_key_col])
+            if record:
+                # Update each column in the record
+                for col in cleaned_dataframe.columns:
+                    setattr(record, col, row[col])
+                db.session.commit()
 
 # Assuming primary key variations: "ID", "id", "Id"
 primary_key_variations = ["ID", "id", "Id"]

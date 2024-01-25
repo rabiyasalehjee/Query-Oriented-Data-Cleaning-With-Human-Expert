@@ -19,73 +19,76 @@ metadata = MetaData()
 class BaseModel(db.Model):
     __abstract__ = True
 
-def correct_date_format(value):
-    """Corrects the date format to YYYY-MM-DD if possible, otherwise returns the original value."""
-    try:
-        return pd.to_datetime(value).strftime('%Y-%m-%d')
-    except:
-        return value
+class DataCleaner:
+    def __init__(self, dataframe):
+        self.dataframe = dataframe
 
-def capitalize_string_values(value):
-    """Capitalizes the first letter of each word in a string."""
-    if isinstance(value, str):
-        return ' '.join(word.capitalize() for word in re.split(' |_|-|!', value))
-    else:
-        return value
+    def correct_date_format(self, value):
+        """Corrects the date format to YYYY-MM-DD if possible, otherwise returns the original value."""
+        try:
+            return pd.to_datetime(value, errors='coerce').strftime('%Y-%m-%d')
+        except:
+            return value
 
-
-def replace_null_with_none(value):
-    """Replaces null or empty cells with 'None'."""
-    if pd.isna(value) or value == '':
-        return 'None'
-    else:
-        return value
-
-def apply_date_format_rule(dataframe):
-    """Applies the date format rule to the dataframe."""
-    for col in dataframe.columns:
-        if infer_datatype(dataframe[col]) == 'date':
-            dataframe[col] = dataframe[col].apply(correct_date_format)
-
-def apply_capitalization_rule(dataframe):
-    """Applies the capitalization rule to the dataframe."""
-    for col in dataframe.columns:
-        if dataframe[col].dtype == 'O':  # Object type typically indicates string in pandas
-            dataframe[col] = dataframe[col].apply(capitalize_string_values)
-
-def apply_null_replacement_rule(dataframe):
-    """Replaces 'None' values with empty string in the dataframe."""
-    for col in dataframe.columns:
-        dataframe[col] = dataframe[col].apply(lambda x: '' if x == 'None' else x)
-
-
-def infer_datatype(column):
-    # Count occurrences of each data type
-    type_counts = Counter()
-    for val in column:
-        if pd.isna(val):
-            continue
-        elif isinstance(val, int):
-            type_counts['integer'] += 1
-        elif isinstance(val, float):
-            type_counts['float'] += 1
-        elif isinstance(val, str):
-            if val.isdigit():
-                type_counts['integer'] += 1
-            elif val.replace('.', '', 1).isdigit():
-                type_counts['float'] += 1
-            else:
-                try:
-                    pd.to_datetime(val)
-                    type_counts['date'] += 1
-                except:
-                    type_counts['string'] += 1
+    def capitalize_string_values(self, value):
+        """Capitalizes the first letter of each word in a string."""
+        if isinstance(value, str):
+            return ' '.join(word.capitalize() for word in re.split(' |_|-|!', value))
         else:
-            type_counts['other'] += 1
+            return value
 
-    # Determine the most common data type
-    most_common_type, _ = type_counts.most_common(1)[0]
-    return most_common_type if most_common_type else 'unknown'
+    def replace_null_with_none(self, value):
+        """Replaces null or empty cells with 'None'."""
+        if pd.isna(value) or value == '':
+            return 'None'
+        else:
+            return value
+
+    def apply_date_format_rule(self):
+        """Applies the date format rule to the dataframe."""
+        for col in self.dataframe.columns:
+            if self.infer_datatype(self.dataframe[col]) == 'date':
+                self.dataframe[col] = self.dataframe[col].apply(self.correct_date_format)
+
+    def apply_capitalization_rule(self):
+        """Applies the capitalization rule to the dataframe."""
+        for col in self.dataframe.columns:
+            if self.dataframe[col].dtype == 'O':  # Object type typically indicates string in pandas
+                self.dataframe[col] = self.dataframe[col].apply(self.capitalize_string_values)
+
+    def apply_null_replacement_rule(self):
+        """Replaces 'None' values with empty string in the dataframe."""
+        for col in self.dataframe.columns:
+            self.dataframe[col] = self.dataframe[col].apply(lambda x: '' if x == 'None' else x)
+
+    @staticmethod
+    def infer_datatype(column):
+        # Count occurrences of each data type
+        type_counts = Counter()
+        for val in column:
+            if pd.isna(val):
+                continue
+            elif isinstance(val, int):
+                type_counts['integer'] += 1
+            elif isinstance(val, float):
+                type_counts['float'] += 1
+            elif isinstance(val, str):
+                if val.isdigit():
+                    type_counts['integer'] += 1
+                elif val.replace('.', '', 1).isdigit():
+                    type_counts['float'] += 1
+                else:
+                    try:
+                        pd.to_datetime(val)
+                        type_counts['date'] += 1
+                    except:
+                        type_counts['string'] += 1
+            else:
+                type_counts['other'] += 1
+
+        # Determine the most common data type
+        most_common_type, _ = type_counts.most_common(1)[0]
+        return most_common_type if most_common_type else 'unknown'
 
 # Modify the FlaggedValues model to include the original_id column
 class FlaggedValues(BaseModel):
@@ -182,14 +185,14 @@ def flag_invalid_dates(column, col_name):
     return flagged_values
 
 def apply_rules(dataframe, YourTable):
-    # Apply capitalization and null replacement rules
-    apply_capitalization_rule(dataframe)
-    apply_null_replacement_rule(dataframe)
+    cleaner = DataCleaner(dataframe)
+    cleaner.apply_capitalization_rule()
+    cleaner.apply_null_replacement_rule()
 
     cleaned_dataframe = dataframe.copy()
     flagged_values = {col: [] for col in cleaned_dataframe.columns}
     primary_keys = {col: [] for col in cleaned_dataframe.columns}
-    column_datatypes = {col: infer_datatype(dataframe[col]) for col in dataframe.columns}
+    column_datatypes = {col: cleaner.infer_datatype(dataframe[col]) for col in dataframe.columns}
 
     for col in cleaned_dataframe.columns:
         if np.issubdtype(cleaned_dataframe[col].dtype, np.number):
@@ -216,8 +219,6 @@ def apply_rules(dataframe, YourTable):
         else:
             primary_keys[col] = []
 
-    
-    # Print flagged values, primary keys, and datatypes
     print("\nFlagged Values with their Primary Keys and Datatypes:")
     for key, values in flagged_values.items():
         if values:
@@ -232,8 +233,6 @@ def standardize_date_format(date_value):
         # Replace spaces with hyphens to standardize the format
         return date_value.replace(' ', '-')
     return date_value
-
-
 
 # Save flagged values to a database table with primary keys
 def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable):
@@ -292,7 +291,7 @@ with app.app_context():
 
     # Commit the changes to the database
     db.session.commit()
-    print("Changes committed to the databasefrom app.app_context")
+    print("Changes committed to the database from app.app_context")
 
 def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
     with app.app_context():

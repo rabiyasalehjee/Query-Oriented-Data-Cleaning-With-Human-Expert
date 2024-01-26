@@ -1,4 +1,4 @@
-Algorithm: Rule Base Cleaning & Flagging in Database
+Algorithm: Rule Base Data Cleaning & Flagging in Database
 
 Input
 - `Q`: A query to identify data for processing.

@@ -140,15 +140,21 @@ def apply_rules_to_database(YourTable):
         cleaned_dataframe, flagged_values, primary_keys, column_datatypes = apply_rules(dataframe, YourTable)
         update_database_with_cleaned_data(cleaned_dataframe, YourTable)
         save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable)
-    print("Changes committed to the database from apply_rules_to_database")
+    
+    print("\nUnfiltered Flagged Values with their Primary Keys and Datatypes:\n")
+    for key, values in flagged_values.items():
+        if values:
+            for i, value in enumerate(values):
+                print(f"ID: '{primary_keys[key][i]}' column> {key}: '{value}', Datatype: '{column_datatypes[key]}'")
+        
     # Filter and flatten flagged values and primary keys
     filtered_flagged_values = [value for values in flagged_values.values() if values for value in values]
     filtered_primary_keys = [key for keys in primary_keys.values() if keys for key in keys]
     filtered_column_datatypes = {key: column_datatypes[key] for key in flagged_values if flagged_values[key]}
 
-    print("Filtered Flagged Values: ", filtered_flagged_values)
-    print("Filtered Primary Keys: ", filtered_primary_keys)
-    print("Filtered Column Datatypes: ", filtered_column_datatypes)
+    print("\nFiltered Flagged Values: ", filtered_flagged_values)
+    print("\nFiltered Primary Keys: ", filtered_primary_keys)
+    print("\nFiltered Column Datatypes: ", filtered_column_datatypes)
 
     return filtered_flagged_values, filtered_primary_keys, filtered_column_datatypes
 
@@ -219,12 +225,6 @@ def apply_rules(dataframe, YourTable):
         else:
             primary_keys[col] = []
 
-    print("\nFlagged Values with their Primary Keys and Datatypes:")
-    for key, values in flagged_values.items():
-        if values:
-            for i, value in enumerate(values):
-                print(f"ID: '{primary_keys[key][i]}' column> {key}: '{value}', Datatype: '{column_datatypes[key]}'")
-
     return cleaned_dataframe, flagged_values, primary_keys, column_datatypes
 
 def standardize_date_format(date_value):
@@ -255,7 +255,7 @@ def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_datafr
 
         # Commit the changes to the database
         db.session.commit()
-        print("Changes committed to the database")
+        
 
 # Add the following line to set extend_existing=True
 db.Table('flagged_values', metadata, extend_existing=True)
@@ -291,8 +291,7 @@ with app.app_context():
 
     # Commit the changes to the database
     db.session.commit()
-    print("Changes committed to the database from app.app_context")
-
+    
 def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
     with app.app_context():
         primary_key_col = get_primary_key(YourTable.__table__)
@@ -308,6 +307,22 @@ def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
                 for col in cleaned_dataframe.columns:
                     setattr(record, col, row[col])
                 db.session.commit()
+
+def MostFrequentFlaggedValue(flagged_values):
+    value_counts = Counter()
+    for col, values in flagged_values.items():
+        for value in values:
+            value_counts[value] += 1
+
+    print("\nFlagged Value Counts:")
+    for value, count in value_counts.items():
+        print(f"{value}: {count}")
+
+    most_common_value, _ = value_counts.most_common(1)[0]
+    return most_common_value
+
+most_frequent_flagged_value = MostFrequentFlaggedValue(flagged_values)
+print("\nMost Frequent Flagged Value:", most_frequent_flagged_value)
 
 # Assuming primary key variations: "ID", "id", "Id"
 primary_key_variations = ["ID", "id", "Id"]

@@ -187,8 +187,16 @@
             }
 
             function updateQuestionCount() {
-                questionCount.textContent = `${currentQuestionIndex + 1} of ${preRenderedQuestions.length}`;
-            }
+    // Count the number of unanswered questions
+    const unansweredQuestions = preRenderedQuestions.filter(question => !question.answered).length;
+
+    // Update the question count display. The current question number should be the index of the current question
+    // among the unanswered questions + 1, because index is 0-based and we want to display a 1-based count.
+    const currentQuestionNumber = preRenderedQuestions.slice(0, currentQuestionIndex + 1).filter(question => !question.answered).length;
+
+    questionCount.textContent = `Question ${currentQuestionNumber} of ${unansweredQuestions}`;
+}
+
 
             function answerYes_index() {
         const modal = document.getElementById('queryModal');
@@ -254,14 +262,24 @@ function findMissingPageAnswerYes() {
             })
             .then(response => response.json())
             .then(data => {
+                if (data.status === "success") {
+                    // Mark the current question as answered
+                    preRenderedQuestions[currentQuestionIndex].answered = true;
+
+                    // Find the next unanswered question
+                    const nextUnansweredIndex = preRenderedQuestions.findIndex((question, index) => index > currentQuestionIndex && !question.answered);
                 console.log('Response from server:', data);
-                currentQuestionIndex++;
-                if (currentQuestionIndex < preRenderedQuestions.length) {
-                    displayQuestion();
+                if (nextUnansweredIndex !== -1) {
+                        currentQuestionIndex = nextUnansweredIndex;
+                        displayQuestion();
                 } else {
                     // Enable the button and display an alert
                     submitQueryBtn.disabled = false;
                     alert('All questions answered. Submitting form...');
+                }
+            } else {
+                    // Handle error or unsuccessful response
+                    console.error('Error submitting answer:', data.message);
                 }
             })
             .catch(error => {
@@ -370,17 +388,25 @@ function findMissingPageAnswerNo() {
                     
                 }
                 
-            function findMissingPageGoBack() {
-                    currentQuestionIndex--;
-                    if (currentQuestionIndex >= 0) {
-                        displayQuestion();
-                    } else {
-                        alert('No more previous questions.');
-                        currentQuestionIndex = 0;
-                    }
-                    
-                }
-            
+                function findMissingPageGoBack() {
+    // Decrement currentQuestionIndex to start looking for the previous unanswered question
+    currentQuestionIndex--;
+
+    // Loop backwards through the questions to find the first unanswered one
+    while (currentQuestionIndex >= 0 && preRenderedQuestions[currentQuestionIndex].answered) {
+        currentQuestionIndex--;
+    }
+
+    // Check if an unanswered question was found
+    if (currentQuestionIndex >= 0) {
+        displayQuestion(); // Display the previous unanswered question
+    } else {
+        // If no unanswered question was found (i.e., we've reached the beginning), 
+        // reset currentQuestionIndex and inform the user
+        currentQuestionIndex = 0; // Reset to the first question in the array
+        alert('No more previous questions.');
+    }
+}
                 function findMissingValues() {
                 const filteredMissingQuestions = preRenderedQuestions.filter(question => {
                     const mainColumn = question.message.split("'")[1];

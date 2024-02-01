@@ -28,7 +28,7 @@
     <div id="queryModal" class="modal">
         <div class="modal-content">
             <span id="closeModal" class="close">&times;</span>
-            <label>Provide a query to correct the value:</label>
+            <label>Provide an answer to the current question:</label>
             <input type="text" id="user-query-input" />
             <button id="submit-query-btn">Submit Query</button>
         </div>
@@ -36,6 +36,36 @@
     <script>
         let displayedRowIdMissing; // Variable to store the displayed row ID for missing data questions
         document.addEventListener('DOMContentLoaded', function () {
+        const inputField = document.getElementById('user-query-input');
+        const submitQueryBtn = document.getElementById('submit-query-btn');
+
+        // Function to update the cursor style of the submit button
+    function updateSubmitButtonCursor() {
+        if (inputField.value.trim() === '') {
+            submitQueryBtn.classList.add('cursor-not-allowed');
+            submitQueryBtn.disabled = true; // Optionally disable the button
+        } else {
+            submitQueryBtn.classList.remove('cursor-not-allowed');
+            submitQueryBtn.disabled = false; // Optionally enable the button
+        }
+    }
+
+    // Initial check in case there's already text in the input field when the page loads
+    updateSubmitButtonCursor();
+
+    // Event listener to check input field's value on keyup
+    inputField.addEventListener('keyup', function () {
+        updateSubmitButtonCursor();
+    });
+
+    // Prevent the form from submitting if the input field is empty and the button is clicked
+    submitQueryBtn.addEventListener('click', function (event) {
+        if (inputField.value.trim() === '') {
+            event.preventDefault(); // Stop the form from submitting
+            alert('Please enter a query before submitting.'); // Optional: Display a message
+        }
+    });
+
         var preRenderedQuestions = {{ pre_rendered_questions | safe }};
         var generatedQueries = [];
 
@@ -58,7 +88,7 @@
         const flaggedValuesnoBtn = document.getElementById('show-flagged-values-no-btn');
         const flaggedValuesbackBtn = document.getElementById('show-flagged-values-back-btn');
         const submitAnswerBtn = document.getElementById('submit-answer-btn');
-        
+
         // Check if on the find_missing_values page
         if (currentUrl.includes('/find_missing_values')) {
             // Hide buttons on the index page
@@ -105,17 +135,30 @@
     console.log('Executing displayQuestion');
 
     if (currentQuestionIndex < totalQuestions) {
-        console.log('Displaying question:', preRenderedQuestions[currentQuestionIndex]);
         const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+        console.log('Current question object:', currentQuestion);
+
+        // Check if we are on the "find missing values" page and set displayedRowIdMissing
+        if (currentUrl.includes('/find_missing_values')) {
+            // Check if currentQuestion has a data property and a row_id within it
+            if (currentQuestion.data && 'row_id' in currentQuestion.data) {
+                displayedRowIdMissing = currentQuestion.data.row_id;
+                console.log(`Currently Displayed Row ID (Missing Data): ${displayedRowIdMissing}`);
+            } else {
+                console.error('Row ID missing in question data for missing values page');
+            }
+        } else {
+            // For other pages, use the existing method to set displayedRowId
+            displayedRowId = currentQuestion.row_id;
+            console.log(`Currently Displayed Row ID: ${displayedRowId}`);
+        }
 
         // Determine whether we're dealing with a flagged value question or not
         if (currentQuestion.hasOwnProperty('question')) {
             // For flagged value questions
-            displayedRowId = currentQuestion.row_id; // Store the row ID
             questionContainer.innerHTML = `<label>${formatQuestionText(currentQuestion.question)}</label>`;
         } else {
             // For other question types (assuming 'message' field contains the question text)
-            displayedRowId = currentQuestion.row_id; // Store the row ID
             questionContainer.innerHTML = `<label>${formatQuestionText(currentQuestion.message)}</label>`;
         }
 
@@ -132,13 +175,8 @@
         }
 
         updateQuestionCount();
-
-        if (currentUrl.includes('/find_missing_values')) {
-            displayedRowIdMissing = currentQuestion.row_id; // Update displayedRowIdMissing for missing data questions
-        }
-
-        console.log(`Currently Displayed Row ID : ${displayedRowId}`);
-        console.log(`Currently Displayed Row ID (Missing Data): ${displayedRowIdMissing}`);
+        // Ensure the submit button cursor and disabled state are updated for the new question
+        updateSubmitButtonCursor();
     } else {
         alert('All questions answered. Submitting form...');
     }
@@ -156,7 +194,7 @@
         const modal = document.getElementById('queryModal');
         modal.style.display = 'block';
 
-        const submitQueryBtn = document.getElementById('submit-query-btn');
+        
         submitQueryBtn.addEventListener('click', function () {
             const userQueryInput = document.getElementById('user-query-input');
             const userQuery = userQueryInput.value.trim();
@@ -184,38 +222,68 @@
         });
     }
 
-            function findMissingPageAnswerYes() {
-        const modal = document.getElementById('queryModal');
-        modal.style.display = 'block';
-
-        const submitQueryBtn = document.getElementById('submit-query-btn');
+function findMissingPageAnswerYes() {
+    const modal = document.getElementById('queryModal');
+    modal.style.display = 'block';
         submitQueryBtn.addEventListener('click', function () {
-            const userQueryInput = document.getElementById('user-query-input');
-            const userQuery = userQueryInput.value.trim();
+        const userQueryInput = document.getElementById('user-query-input');
+        const userQuery = userQueryInput.value.trim();
 
-            if (userQuery !== '') {
-                // Extract question details from the current question
-                const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+        if (userQuery !== '') {
+            const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+            const questionDetails = currentQuestion.name.split('_');
+            const mainColumn = questionDetails[2]; 
+            const relatedColumn = questionDetails[3]; 
 
-                // Send the user-provided answer to the server
-                updateDatabaseWithAnswer(userQuery, currentQuestion);
+            const dataToSend = {
+                rowId: displayedRowIdMissing, 
+                mainColumn: mainColumn, 
+                relatedColumn: relatedColumn, 
+                answer: userQuery
+            };
 
-                // Clear the input field
-                userQueryInput.value = '';
+            // Debugging: Log the data being sent
+            console.log(`Sending data: ${JSON.stringify(dataToSend)}`);
 
-                // Close the modal
-                modal.style.display = 'none';
-            } else {
-                alert('Please provide a valid query.');
-            }
-        });
+            fetch('/process_answers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dataToSend),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Response from server:', data);
+                currentQuestionIndex++;
+                if (currentQuestionIndex < preRenderedQuestions.length) {
+                    displayQuestion();
+                } else {
+                    // Enable the button and display an alert
+                    submitQueryBtn.disabled = false;
+                    alert('All questions answered. Submitting form...');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Enable the button in case of an error
+                submitQueryBtn.disabled = false;
+            });
 
-        const closeModalBtn = document.getElementById('closeModal');
-        closeModalBtn.addEventListener('click', function () {
+            // Clear the input field and close the modal
+            userQueryInput.value = '';
             modal.style.display = 'none';
-        });
-    }
+        } else {
+            submitQueryBtn.disabled = false;
+            
+        }
+    });
 
+    const closeModalBtn = document.getElementById('closeModal');
+    closeModalBtn.addEventListener('click', function () {
+        modal.style.display = 'none';
+    });
+}
             // Function to update the database with the provided answer
             function updateDatabaseWithAnswer(userQuery, currentQuestion) {
                 const [_, rowId, mainColumn, relatedColumn] = currentQuestion.name.split('_');

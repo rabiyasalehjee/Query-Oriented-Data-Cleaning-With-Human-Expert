@@ -115,7 +115,7 @@ def create_model_class_internal(table_name):
     return DynamicModel
 
 def get_primary_key(table):
-    # Assuming primary key variations: "ID", "id", "Id"
+    # Assuming primary key variations
     primary_key_variations = ["ID", "id", "Id"]
 
     for col_name in primary_key_variations:
@@ -128,7 +128,6 @@ def get_primary_keys_for_flagged_values(dataframe, col, primary_key_col, flagged
         if primary_key_col in dataframe.columns:
             return dataframe[primary_key_col][dataframe[col].isin(flagged_values[col])].tolist()
         else:
-            #print(f"Warning: Primary key column {primary_key_col} not found in DataFrame columns.")
             return []
     else:
         # Handle the case where primary_key_col is None
@@ -257,7 +256,7 @@ def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_datafr
         db.session.commit()
         
 
-# Add the following line to set extend_existing=True
+#To set extend_existing=True
 db.Table('flagged_values', metadata, extend_existing=True)
 
 # Create the flagged values table if it doesn't exist
@@ -324,7 +323,7 @@ def MostFrequentFlaggedValue(flagged_values):
 most_frequent_flagged_value = MostFrequentFlaggedValue(flagged_values)
 print("\nMost Frequent Flagged Value:", most_frequent_flagged_value)
 
-# Assuming primary key variations: "ID", "id", "Id"
+# Assuming primary key variations
 primary_key_variations = ["ID", "id", "Id"]
 
 # Load relationships configuration from JSON file

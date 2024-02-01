@@ -57,7 +57,7 @@ def update_database_with_cleaned_data(cleaned_dataframe, YourTable, primary_key_
                 print(f"Updating row with primary key {primary_key_column}={primary_key_value} in the database")
                 db.session.query(YourTable).filter(getattr(YourTable, primary_key_column) == primary_key_value).update(row.to_dict())
 
-        # Commit the changes to the database
+        
         db.session.commit()
         print("Changes committed to the database")
     except Exception as e:
@@ -147,7 +147,6 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
         # Extract the primary key (ID) column name and value
         primary_key_column = 'ID' 
         row_id = row[primary_key_column]
-        #print(f"Generating question for row with primary key {primary_key_column}={row_id}")
 
         # Generate a question for each relationship
         for relationship in relationships_config:
@@ -170,7 +169,6 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
                 # Generate the question for missing data
                 question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing (Row ID: {row_id}). Do you want to modify the data?"
             else:
-                # Generate the question without mentioning "missing"
                 question_text = f"The {main_column}: {main_value} has {related_value} as {related_column} (Row ID: {row_id}). Do you want to modify the data?"
             question_count += 1
             question = {
@@ -210,7 +208,7 @@ def generate_question_for_relationship(row, relationship, relationships_config, 
 
 @app.route('/')
 def index():
-    # Access your dynamically created model
+    # Access dynamically created model
     data = YourTable.query.all()
 
     # Extract relevant columns from the query result
@@ -270,15 +268,15 @@ def find_missing_values():
 
     missing_questions = generate_missing_data_questions(dataframe, relationships_config, current_row_id)
 
-    # Print generated questions and their row IDs to the console
-    #for question in missing_questions:
-    #   print(f"Question: {question['message']}, Row ID: {question.get('data', {}).get('row_id', None)}")
-
-    # Convert the Python list to JSON using json.dumps with double quotes
+# Convert the Python list to JSON using json.dumps with double quotes
     pre_rendered_questions = json.dumps([
         {
             "name": question["name"],
-            "message": question["message"].strip().replace('"', '\\"')  # Escape double quotes
+            "message": question["message"].strip().replace('"', '\\"'),  # Escape double quotes
+            "data": {
+                "row_id": question.get('data', {}).get('row_id', None),  # Ensure row_id is included
+                
+            }
         } for question in missing_questions
     ], ensure_ascii=False)
 
@@ -312,9 +310,11 @@ def generate_missing_data_questions(dataframe, relationships_config, current_row
                 primary_key_column = 'ID' 
                 row_id = row[primary_key_column]
 
+                m_question_name = f'missing_{index}_{main_column}_{related_column}'
+
                 missing_questions.append({
                     'type': 'confirm',
-                    'name': f'q_{index}_{main_column}_missing',
+                    'name': m_question_name,
                     'message': question_text,
                     'default': True,
                     'data': {'row_id': row_id},  # Set the row_id in the question's data
@@ -335,7 +335,6 @@ def generate_flagged_value_questions(flagged_values, primary_keys, YourTable, co
                 if col_value == flagged_value:
                     datatype = column_datatypes.get(col_name, 'unknown datatype')
                     rule_violation_text = (f"This value is violating the rules of the database; the expected value should be of {datatype} datatype.")
-                    #question_text = f"What is the correct value for the item with ID '{primary_key}' in column '{col_name}' which was flagged as '{flagged_value}'?"
                     question_text = f"The value '{flagged_value}' in the '{col_name}' column is marked as flagged. Please provide accurate value."
                     questions.append({"question": question_text, "rule_violation": rule_violation_text})
     return questions
@@ -359,27 +358,41 @@ def log_current_row_id():
 
 @app.route('/process_answers', methods=['POST'])
 def process_answers():
+    data = request.get_json()  # This will parse JSON data from the request
+    print(f"Received data: {data}")
+
+    # Check if 'rowId' is provided in the request data
+    row_id = data.get('rowId')  # Extract rowId from the request data
+    if row_id is None:
+        print("Row ID is missing in the request data")
+        return jsonify({"status": "error", "message": "Row ID is missing"}), 400  # Bad Request
+
+    # Convert row_id to int, ensuring it's the correct type for database operations
     try:
-        data = request.get_json()  # This will parse JSON data from the request
-        print(f"Received data: {data}")
+        row_id = int(row_id)
+    except ValueError:
+        print(f"Invalid row ID format: {row_id}")
+        return jsonify({"status": "error", "message": "Invalid row ID format"}), 400  # Bad Request
 
-        # Extract data from the JSON request, including the row ID
-        row_id = int(data.get('rowId', -1))  # Replace -1 with a default value if needed
-        main_column = data.get('mainColumn')
-        related_column = data.get('relatedColumn')
-        user_answer = data.get('answer')
-        print(f"Extracted data: row_id={row_id}, main_column={main_column}, related_column={related_column}, answer={user_answer}")
+    main_column = data.get('mainColumn')
+    related_column = data.get('relatedColumn')
+    user_answer = data.get('answer')
+    print(f"Extracted data: row_id={row_id}, main_column={main_column}, related_column={related_column}, answer={user_answer}")
+    
+    valid_columns = {column.name for column in inspect(YourTable).columns}
+    print(f"Received main_column: {main_column}, related_column: {related_column}")
+    print(f"Valid columns: {valid_columns}")
 
-        # Call the function to update the database
+    if main_column not in valid_columns or related_column not in valid_columns:
+        return jsonify({"status": "error", "message": "Invalid column name"}), 400
+    # Call the function to update the database
+    try:
         updateDatabaseWithAnswer(user_answer, YourTable, row_id, related_column, main_column)
-
-        # Return a JSON response indicating success
         return jsonify({"status": "success"})
-
     except Exception as e:
-        print(f"Error processing JSON: {e}")
-        # Return a JSON response indicating failure
-        return jsonify({"status": "error", "message": str(e)})
+        print(f"Error updating the database: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500  # Internal Server Error
+
 
 # Function to update the database with the provided answer
 def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainColumn):
@@ -391,15 +404,23 @@ def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainCol
         primary_key_column = next((col for col in YourTable.__table__.columns.keys() if col.lower() == 'id'), None)
 
         if primary_key_column:
-            # Update the row in the database based on the found primary key column
-            YourTable.query.filter(getattr(YourTable, primary_key_column) == rowId).update({relatedColumn: userQuery})
-            db.session.commit()
-            print(f"Changes committed to the database")
+            # Dynamically refer to the column in SQLAlchemy
+            # Use the getattr function to get the column object based on the relatedColumn variable
+            column_to_update = getattr(YourTable, relatedColumn, None)
+
+            if column_to_update is not None:
+                # Update the row in the database based on the found primary key column
+                YourTable.query.filter(getattr(YourTable, primary_key_column) == rowId).update({column_to_update: userQuery})
+                db.session.commit()
+                print(f"Changes committed to the database for column {relatedColumn}")
+            else:
+                print(f"Column {relatedColumn} not found in the table.")
         else:
             print("Primary key column not found in the table.")
 
     except Exception as e:
         print(f"Error updating the database: {e}")
+
 
 @app.route('/perform_database_operations')
 def perform_database_operations():

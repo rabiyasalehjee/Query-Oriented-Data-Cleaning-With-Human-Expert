@@ -290,3 +290,7 @@ button {
     margin-left: 5px;
 }
 
+.cursor-not-allowed {
+    cursor: not-allowed;
+}
+

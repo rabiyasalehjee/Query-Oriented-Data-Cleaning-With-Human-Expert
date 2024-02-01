@@ -2,10 +2,10 @@
   "relationships": [
     {"main_column": "Year", "related_column": "Host"},
     {"main_column": "Year", "related_column": "Champion"},
-    {"main_column": "Year", "related_column": "Runner_Up"},
-    {"main_column": "Year", "related_column": "Third_Place"},
-    {"main_column": "Year", "related_column": "Matches_Played"},
-    {"main_column": "Year", "related_column": "Goals_Scored"},
+    {"main_column": "Year", "related_column": "RunnerUp"},
+    {"main_column": "Year", "related_column": "ThirdPlace"},
+    {"main_column": "Year", "related_column": "MatchesPlayed"},
+    {"main_column": "Year", "related_column": "GoalsScored"},
     {"main_column": "Year", "related_column": "Date"}
 
   ]

@@ -14,6 +14,7 @@ import pymysql
 import json
 import random
 import requests
+from datetime import datetime
 from rules import apply_rules, apply_rules_to_database
 from flask_cors import CORS
 from relationships import define_relationships
@@ -59,7 +60,7 @@ def update_database_with_cleaned_data(cleaned_dataframe, YourTable, primary_key_
 
         
         db.session.commit()
-        print("Changes committed to the database")
+        #print("Changes committed to the database")
     except Exception as e:
         print(f"Error committing changes to the database: {e}")
 
@@ -157,8 +158,9 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
             # Add the row ID to the question data
             question_data = {
                 'row_id': row_id,  
-                'main_column': main_column,
-                'related_column': related_column,
+                'mainColumn': main_column,
+                'relatedColumn': related_column,
+                
             }
 
             main_value = row[main_column]
@@ -167,9 +169,11 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
             # Check if either main or related value is missing or empty
             if pd.isnull(main_value) or main_value == '' or pd.isnull(related_value) or related_value == '':
                 # Generate the question for missing data
-                question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing (Row ID: {row_id}). Do you want to modify the data?"
+                #question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing (Row ID: {row_id}). Do you want to modify the data?"
+                question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Please provide the missing answer"
+
             else:
-                question_text = f"The {main_column}: {main_value} has {related_value} as {related_column} (Row ID: {row_id}). Do you want to modify the data?"
+                question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data?"
             question_count += 1
             question = {
                 'type': 'confirm',
@@ -202,7 +206,7 @@ def generate_question_for_relationship(row, relationship, relationships_config, 
         question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data?"
     else:
         # If missing, generate a question explicitly mentioning "missing"
-        question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Do you want to modify the data?"
+        question_text = f"The {related_column}: {related_value}_____  information for the {main_column}: {main_value} is missing. Please provide the missing answer"
 
     return question_text
 
@@ -249,8 +253,8 @@ def index():
 
     # Print the current row ID to the console
     if current_row_id is not None:
-        print("\n")
-
+        print("")
+    
     return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
 
 @app.route('/find_missing_values')
@@ -270,16 +274,19 @@ def find_missing_values():
 
 # Convert the Python list to JSON using json.dumps with double quotes
     pre_rendered_questions = json.dumps([
-        {
-            "name": question["name"],
-            "message": question["message"].strip().replace('"', '\\"'),  # Escape double quotes
-            "data": {
-                "row_id": question.get('data', {}).get('row_id', None),  # Ensure row_id is included
-                
-            }
-        } for question in missing_questions
-    ], ensure_ascii=False)
+    {
+        "name": question["name"],
+        "message": question["message"].strip().replace('"', '\\"'),  # Escape double quotes
+        "data": {
+            "row_id": question.get('data', {}).get('row_id', None),  # Ensure row_id is included
+            "datatype": question.get('data', {}).get('datatype', 'appropriate'),
+            "mainColumn": question.get('data', {}).get('mainColumn', None),  # Add mainColumn
+            "relatedColumn": question.get('data', {}).get('relatedColumn', None)  # Add relatedColumn
+        }
+    } for question in missing_questions
+], ensure_ascii=False)
 
+    #print(f"Pre-rendered Questions (Before Template): {pre_rendered_questions}")
     return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
 
 displayed_row_id_missing = None
@@ -301,27 +308,76 @@ def generate_missing_data_questions(dataframe, relationships_config, current_row
 
             main_value = row[main_column]
             related_value = row[related_column]
+            column_datatype = determine_column_datatype(dataframe[related_column])
 
             if pd.isnull(related_value) or related_value == '':
                 # If related value is missing, generate a question explicitly mentioning "missing"
-                question_text = f"The {related_column}: _____  information for the {main_column}: {main_value} is missing (Row ID: {row['ID']}). Do you want to modify the data?"
-
+                #question_text = f"The {related_column}: _____  information for the {main_column}: {main_value} is missing (Row ID: {row['ID']}). Please provide the missing answer."
+                question_text = f"The {related_column}: _____  information for the {main_column}: {main_value} is missing. Please provide the missing answer."
+                
+                #question_text = f"The {related_column} information for the {main_column}: {main_value} is missing (Row ID: {row['ID']}). Please provide a {column_datatype} value."
+                
                 # Extract the primary key (ID) column name and value
                 primary_key_column = 'ID' 
                 row_id = row[primary_key_column]
-
                 m_question_name = f'missing_{index}_{main_column}_{related_column}'
-
+                
+                question_data = {
+                                    'row_id': row_id,
+                                    'mainColumn': main_column,
+                                    'relatedColumn': related_column,
+                                    'datatype': column_datatype
+                                }
+                #print(f"Question Data (Before Adding to Questions): {question_data}")
                 missing_questions.append({
                     'type': 'confirm',
                     'name': m_question_name,
                     'message': question_text,
                     'default': True,
-                    'data': {'row_id': row_id},  # Set the row_id in the question's data
+                    'data': question_data
                 })
                 # Store the displayed row ID
                 displayed_row_id_missing = row_id
     return missing_questions
+
+def determine_column_datatype(column):
+    int_count = 0
+    float_count = 0
+    date_count = 0
+    total_count = len(column)
+
+    # Define a simple date format for checking; you can add more formats as needed
+    date_format = "%Y-%m-%d"
+
+    for value in column.dropna():  # Exclude NaN values from the analysis
+        # Check for integer
+        if str(value).isdigit():
+            int_count += 1
+            continue  # If it's an integer, it can't be a float or date, so continue to the next value
+
+        # Check for float
+        try:
+            float(value)
+            float_count += 1
+        except ValueError:
+            pass  # Not a float
+
+        # Check for date
+        try:
+            datetime.strptime(str(value), date_format)
+            date_count += 1
+        except ValueError:
+            pass  # Not a date
+
+    # Determine the datatype based on counts
+    if int_count / total_count > 0.8:  # Arbitrary threshold, adjust based on your needs
+        return 'integer'
+    elif float_count / total_count > 0.8:
+        return 'float'
+    elif date_count / total_count > 0.8:
+        return 'date'
+    else:
+        return 'text'  # Default to text if no clear datatype is determined
 
 def generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes):
     questions = []
@@ -361,66 +417,103 @@ def process_answers():
     data = request.get_json()  # This will parse JSON data from the request
     print(f"Received data: {data}")
 
-    # Check if 'rowId' is provided in the request data
-    row_id = data.get('rowId')  # Extract rowId from the request data
-    if row_id is None:
-        print("Row ID is missing in the request data")
-        return jsonify({"status": "error", "message": "Row ID is missing"}), 400  # Bad Request
+    # Validate the presence of required fields
+    required_fields = ['rowId', 'mainColumn', 'relatedColumn', 'answer']
+    for field in required_fields:
+        if field not in data:
+            print(f"{field} is missing in the request data")
+            return jsonify({"status": "error", "message": f"{field} is missing"}), 400
 
-    # Convert row_id to int, ensuring it's the correct type for database operations
     try:
-        row_id = int(row_id)
+        row_id = int(data['rowId'])  # Convert row_id to int
     except ValueError:
-        print(f"Invalid row ID format: {row_id}")
-        return jsonify({"status": "error", "message": "Invalid row ID format"}), 400  # Bad Request
+        print(f"Invalid row ID format: {data['rowId']}")
+        return jsonify({"status": "error", "message": "Invalid row ID format"}), 400
 
-    main_column = data.get('mainColumn')
-    related_column = data.get('relatedColumn')
-    user_answer = data.get('answer')
-    print(f"Extracted data: row_id={row_id}, main_column={main_column}, related_column={related_column}, answer={user_answer}")
-    
+    main_column = data['mainColumn']
+    related_column = data['relatedColumn']
+    user_answer = data['answer']  # User answer as a string
+
+    # Ensure columns are valid
     valid_columns = {column.name for column in inspect(YourTable).columns}
-    print(f"Received main_column: {main_column}, related_column: {related_column}")
-    print(f"Valid columns: {valid_columns}")
-
     if main_column not in valid_columns or related_column not in valid_columns:
-        return jsonify({"status": "error", "message": "Invalid column name"}), 400
-    # Call the function to update the database
+        print(f"Invalid column name(s): {main_column}, {related_column}")
+        return jsonify({"status": "error", "message": "Invalid column name(s)"}), 400
+
+    # Determine expected datatype for the related column
+    expected_datatype = data.get('datatype', 'text')  # Default to 'text' if not specified
+    user_answer = data.get('answer', None)
+    print(f"Expected datatype: {expected_datatype}, Received answer: {user_answer}")
+
+
+    # Convert user_answer to the expected data type
+    if expected_datatype == 'integer':
+        try:
+            user_answer = int(user_answer)  # Convert to integer
+        except ValueError:
+            return jsonify({"status": "error", "message": "Invalid data type for answer. Expected integer."}), 400
+    # Add additional checks and conversions for other datatypes as necessary.
+
+    # Attempt to update the database with the converted user_answer
     try:
-        updateDatabaseWithAnswer(user_answer, YourTable, row_id, related_column, main_column)
-        return jsonify({"status": "success"})
+        return updateDatabaseWithAnswer(
+            userQuery=user_answer,  # Use the converted user_answer
+            YourTable=YourTable,
+            rowId=row_id,  # Use the converted row_id
+            relatedColumn=related_column,
+            mainColumn=main_column,
+            expected_datatype=expected_datatype
+        )
     except Exception as e:
         print(f"Error updating the database: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500  # Internal Server Error
 
+def is_valid_integer(value):
+    try:
+        int(value)
+        return True
+    except ValueError:
+        return False
+
+# Add additional validation functions for other data types as needed.
 
 # Function to update the database with the provided answer
-def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainColumn):
+def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainColumn, expected_datatype):
     try:
         # Convert rowId to integer if it's not already
         rowId = int(rowId)
 
         # Find the primary key column variation that exists in the DataFrame
         primary_key_column = next((col for col in YourTable.__table__.columns.keys() if col.lower() == 'id'), None)
-
-        if primary_key_column:
-            # Dynamically refer to the column in SQLAlchemy
-            # Use the getattr function to get the column object based on the relatedColumn variable
-            column_to_update = getattr(YourTable, relatedColumn, None)
-
-            if column_to_update is not None:
-                # Update the row in the database based on the found primary key column
-                YourTable.query.filter(getattr(YourTable, primary_key_column) == rowId).update({column_to_update: userQuery})
-                db.session.commit()
-                print(f"Changes committed to the database for column {relatedColumn}")
-            else:
-                print(f"Column {relatedColumn} not found in the table.")
-        else:
+        if not primary_key_column:
             print("Primary key column not found in the table.")
+            return jsonify({"status": "error", "message": "Primary key column not found"}), 404
 
+        # Attempt to convert userQuery to the correct datatype if necessary
+        if expected_datatype == 'integer':
+            if not is_valid_integer(userQuery):
+                print(f"Value conversion error: {userQuery} is not a valid integer")
+                return jsonify({"status": "error", "message": "Value must be an integer"}), 400
+            userQuery = int(userQuery)
+        # Add additional checks and conversions for other datatypes (float, date, etc.) as necessary.
+
+        # Fetch the record to update
+        record = YourTable.query.filter_by(ID=rowId).first()
+        if record:
+            # Set the attribute value
+            setattr(record, relatedColumn, userQuery)
+            db.session.commit()
+            print(f"Record updated: {rowId}, {relatedColumn}, {userQuery}")
+            return jsonify({"status": "success"}), 200
+        else:
+            print(f"No record found for ID: {rowId}")
+            return jsonify({"status": "error", "message": "Record not found"}), 404
+    except ValueError as e:
+        print(f"Value conversion error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
     except Exception as e:
         print(f"Error updating the database: {e}")
-
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/perform_database_operations')
 def perform_database_operations():

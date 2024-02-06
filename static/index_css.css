@@ -69,8 +69,6 @@ button {
     background-color: #0d8bf2;
 }
 
-
-
 #show-flagged-values-no-btn,
 #show-flagged-values-back-btn,
 #submit-answer-btn {
@@ -141,42 +139,32 @@ button {
     background-color: #f9f9f9;
 }
 
-/* Styling for the question text */
-#question-container label {
-    display: block;
-    margin-bottom: 10px;
-    font-size: 16px;
-    color: #333;
-}
 
-/* Styling for the user's answer input */
-#question-container input[type="text"] {
-    padding: 10px;
-    font-size: 14px;
-    width: 60%;
-    border: 1px solid #ccc;
-}
-
-/* Styling for the submit answer button */
-#question-container button#submitAnswer {
-    margin-top: 10px;
-    padding: 8px 15px;
-    font-size: 14px;
-    background-color: #4caf50;
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-#question-container button#submitAnswer:hover {
-    background-color: #45a049;
-}
 
 /* Styling for the error message */
 .error-message {
     color: #d32f2f;
     margin-top: 10px;
+    display: none; /* Initially hidden */
+}
+
+.input-error-animation {
+    animation: shake 0.3s;
+    border-color: #d32f2f; /* Red border to indicate error */
+}
+
+@keyframes shake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0); }
+}
+
+/* Add this class to your input field when validation fails */
+.error {
+    border: 2px solid #d32f2f; /* Red border to indicate error */
+    animation: shake 0.5s; /* Shake animation */
 }
 
 /* Styling for the modal */
@@ -194,7 +182,7 @@ button {
 }
 
 .modal-content {
-    background: #fff;
+    background: #ffef0da8;
     padding: 20px;
     border-radius: 5px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
@@ -220,35 +208,92 @@ button {
 }
 
 .modal {
-    display: none;
-    position: fixed;
-    z-index: 1;
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1000; /* Sit on top */
     left: 0;
     top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.6); /* Black w/ opacity */
 }
 
 .modal-content {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: #fff;
+    background-color: #fefefe;
+    margin: 10% auto; /* 10% from the top and centered */
     padding: 20px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+    border: none;
+    width: 40%; /* Could be more or less, depending on screen size */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 10px; /* Rounded corners */
     text-align: center;
+    position: relative; /* For positioning the close button absolutely */
 }
 
 .close {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    font-size: 20px;
+    color: #aaa;
+    float: right;
+    font-size: 28px;
     font-weight: bold;
+    position: absolute;
+    top: 0;
+    right: 10px;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
     cursor: pointer;
+}
+
+#user-query-input {
+    width: 100%; /* Full width */
+    padding: 12px 20px;
+    margin: 8px 0;
+    display: block; /* Ensure it fills the width of its container */
+    border: 2px solid #009688; /* More visible border color */
+    border-radius: 4px;
+    box-sizing: border-box; /* Ensures padding does not affect the width */
+
+    /* Smoothly transition the box-shadow and border */
+    transition: box-shadow 0.3s ease, border 0.3s ease;
+}
+
+#user-query-input:focus {
+    outline: none; /* Removes the default focus outline */
+    border-color: #26a69a; /* A different border color for focus */
+    box-shadow: 0 0 8px rgba(38, 166, 154, 0.6); /* A subtle box-shadow that matches the border color */
+}
+
+#user-query-input.error {
+    border-color: #d32f2f; /* Error color */
+    /* Optional: Add a background color */
+    background-color: #ffebee; /* Very light red */
+}
+
+
+#submit-query-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 14px 20px;
+    margin: 8px 0;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    border-radius: 4px;
+    font-size: 16px; /* Increase font size for better legibility */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Add some shadow for depth */
+}
+
+#submit-query-btn:hover {
+    opacity: 0.9; /* Slightly less opacity on hover */
+}
+
+#submit-query-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
 }
 
 #show-flagged-values-btn {
@@ -292,5 +337,37 @@ button {
 
 .cursor-not-allowed {
     cursor: not-allowed;
+}
+
+.completion-message {
+    font-size: 1.5rem;
+    color: green;
+    text-align: center;
+    margin-top: 20px;
+}
+
+#home-page-button {
+    display: block; /* Ensure the button is block-level so it takes up its own line */
+    width: auto; /* Auto width based on content */
+    margin: 20px auto; /* Center the button horizontally */
+    padding: 10px 20px; /* Add some padding */
+    background-color: #4CAF50; /* Green background */
+    color: white; /* White text */
+    border: none; /* No border */
+    cursor: pointer; /* Cursor to pointer to indicate it's clickable */
+    font-size: 1rem; /* Font size */
+    border-radius: 5px; /* Rounded corners */
+}
+
+#home-page-button:hover {
+    background-color: #45a049; /* Darker green on hover */
+}
+
+.last-question-notification {
+    color: red;
+    margin-top: 10px;
+    font-weight: bold;
+    font-size: 1rem;
+    text-align: center;
 }
 

@@ -17,8 +17,8 @@
         <button id="index-no-btn" class="action-btn">No</button>
         <button id="index-back-btn" class="action-btn">Back</button>
         <button id="index-find-missing-btn" class="action-btn" onclick="window.location.href='/find_missing_values'">Find Missing Data Values</button>
-        <button id="find-missing-yes-btn" class="action-btn">Yes</button>
-        <button id="find-missing-no-btn" class="action-btn">No</button>
+        <button id="find-missing-yes-btn" class="action-btn">Provide Answer</button>
+        <button id="find-missing-no-btn" class="action-btn">Next Question</button>
         <button id="find-missing-back-btn" class="action-btn">Back</button>
         <button id="show-flagged-values-btn" class="action-btn">Show Flagged Values Question</button>
         <button id="show-flagged-values-no-btn" class="action-btn">Next Question</button>
@@ -28,49 +28,37 @@
     <div id="queryModal" class="modal">
         <div class="modal-content">
             <span id="closeModal" class="close">&times;</span>
-            <label>Provide an answer to the current question:</label>
+            <!-- <label>Provide an answer to the current question:</label> -->
+            <p id="datatypeMessageContainer" style="color: rgb(0, 0, 0); margin-top: 35px;"></p>
             <input type="text" id="user-query-input" />
-            <button id="submit-query-btn">Submit Query</button>
+            <p id="error-message-container" class="error-message" style="display: none;"></p>
+            <button id="submit-query-btn">Submit Your Answer</button>
         </div>
     </div>
     <script>
-        let displayedRowIdMissing; // Variable to store the displayed row ID for missing data questions
         document.addEventListener('DOMContentLoaded', function () {
+        
+        let displayedRowIdMissing; // Variable to store the displayed row ID for missing data questions
+        let currentQuestionIndex = 0;
+        let displayedRowId; // Variable to store the displayed row ID
+        var preRenderedQuestions = {{ pre_rendered_questions | safe }};
+        
+        var generatedQueries = [];
+        var currentUrl = window.location.href; // Get the current URL
+        let totalQuestions = preRenderedQuestions.length;
         const inputField = document.getElementById('user-query-input');
         const submitQueryBtn = document.getElementById('submit-query-btn');
+        const closeModalBtn = document.getElementById('closeModal');
+        const modal = document.getElementById('queryModal');
+        const userQueryInput = document.getElementById('user-query-input');
 
-        // Function to update the cursor style of the submit button
-    function updateSubmitButtonCursor() {
-        if (inputField.value.trim() === '') {
-            submitQueryBtn.classList.add('cursor-not-allowed');
-            submitQueryBtn.disabled = true; // Optionally disable the button
-        } else {
-            submitQueryBtn.classList.remove('cursor-not-allowed');
-            submitQueryBtn.disabled = false; // Optionally enable the button
-        }
-    }
+        closeModalBtn.addEventListener('click', function() {
+        modal.style.display = 'none'; 
+        userQueryInput.value = ''; 
+        });
 
-    // Initial check in case there's already text in the input field when the page loads
-    updateSubmitButtonCursor();
-
-    // Event listener to check input field's value on keyup
-    inputField.addEventListener('keyup', function () {
-        updateSubmitButtonCursor();
-    });
-
-    // Prevent the form from submitting if the input field is empty and the button is clicked
-    submitQueryBtn.addEventListener('click', function (event) {
-        if (inputField.value.trim() === '') {
-            event.preventDefault(); // Stop the form from submitting
-            alert('Please enter a query before submitting.'); // Optional: Display a message
-        }
-    });
-
-        var preRenderedQuestions = {{ pre_rendered_questions | safe }};
-        var generatedQueries = [];
-
-        // Get the current URL
-        var currentUrl = window.location.href;
+        const questionContainer = document.getElementById('question-container');
+        const questionCount = document.getElementById('question-count');
 
         // Select buttons based on the current URL
         const yesBtn = document.getElementById('index-yes-btn');
@@ -121,23 +109,168 @@
             flaggedValuesbackBtn.style.display = 'none';
         }
 
-        console.log('Pre-rendered questions:', preRenderedQuestions);
+        // Function to update the cursor style of the submit button
+function updateSubmitButtonCursor() {
+        if (inputField.value.trim() === '') {
+            submitQueryBtn.classList.add('cursor-not-allowed');
+            submitQueryBtn.disabled = true; // Optionally disable the button
+        } else {
+            submitQueryBtn.classList.remove('cursor-not-allowed');
+            submitQueryBtn.disabled = false; // Optionally enable the button
+        }
+    }
 
-        let currentQuestionIndex = 0;
-        let totalQuestions = preRenderedQuestions.length;
+    // Initial check in case there's already text in the input field when the page loads
+updateSubmitButtonCursor();
+    // Event listener to check input field's value on keyup
+inputField.addEventListener('keyup', function () {
+        updateSubmitButtonCursor();
+    });
 
-        const questionContainer = document.getElementById('question-container');
-        const questionCount = document.getElementById('question-count');
+// Add an event listener to clear the error message when the user starts typing
+inputField.addEventListener('input', function () {
+    const errorMessageContainer = document.getElementById('error-message-container');
+    errorMessageContainer.style.display = 'none';
+    inputField.classList.remove('error');
+});
 
-        let displayedRowId; // Variable to store the displayed row ID
-        
-        function displayQuestion() {
-    console.log('Executing displayQuestion');
+document.getElementById('submit-query-btn').addEventListener('click', function(event) {
+    event.preventDefault();
+    
+    // Reintegrate the error message container handling
+    const errorMessageContainer = document.getElementById('error-message-container');
+    errorMessageContainer.style.display = 'none'; // Hide any previous error messages
+    userQueryInput.classList.remove('error'); 
+
+    const userQuery = userQueryInput.value.trim();
+    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+    const expectedDatatype = currentQuestion.data.datatype;
+
+    if (validateUserInput(userQuery, expectedDatatype)) {
+        const dataToSend = {
+            rowId: currentQuestion.data.row_id,
+            mainColumn: currentQuestion.data?.mainColumn,
+            relatedColumn: currentQuestion.data?.relatedColumn,
+            answer: userQuery
+        };
+
+        sendDataToServer(dataToSend)
+        .then(() => {
+            closeModal(); // Close the modal after successful submission
+            displayNextUnansweredQuestion(); // Adjusted to use the custom function for displaying the next question
+        })
+        .catch(error => {
+            // Display error message in UI
+            errorMessageContainer.innerText = error.message;
+            errorMessageContainer.style.display = 'block';
+            userQueryInput.classList.add('error');
+            userQueryInput.value = ''; // Clear the input field
+            userQueryInput.focus(); // Focus on the input field for the user to correct the input
+        });
+    } else {
+        // Display error message for invalid input
+        displayErrorMessage(`Invalid input. Please enter a valid ${expectedDatatype}.`);
+    }
+});
+
+function displayNextUnansweredQuestion() {
+    let nextIndex = currentQuestionIndex + 1; // Start searching from the next question
+    while (nextIndex < totalQuestions && preRenderedQuestions[nextIndex].answered) {
+        nextIndex++; // Skip already answered questions
+    }
+
+    if (nextIndex < totalQuestions) {
+        currentQuestionIndex = nextIndex; // Update the current index to the next unanswered question
+        displayQuestion(); // Display the next unanswered question
+    } else {
+        // If no more unanswered questions are found
+        handleAllQuestionsAnswered();
+    }
+}
+
+function displayErrorMessage(message) {
+    const errorMessageContainer = document.getElementById('error-message-container');
+    errorMessageContainer.innerText = message;
+    errorMessageContainer.style.display = 'block';
+    inputField.classList.add('error');
+    inputField.value = ''; // Clear the input field
+    inputField.focus(); // Focus on the input field for user to correct the input
+
+    // Add a class to animate the input field
+    inputField.classList.add('input-error-animation');
+    // Remove the class after the animation completes to allow it to be triggered again if needed
+    setTimeout(() => inputField.classList.remove('input-error-animation'), 600);
+}
+
+// Function to send data to the server
+function sendDataToServer(dataToSend) {
+    return fetch('/process_answers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSend),
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok. Status: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === "success") {
+            // Mark the current question as answered
+            preRenderedQuestions[currentQuestionIndex].answered = true;
+        } else {
+            throw new Error(data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        throw error; // Rethrow the error to be handled in the caller function
+    });
+}
+
+function closeModal() {
+    const modal = document.getElementById('queryModal');
+    modal.style.display = 'none';
+}
+
+function showQuestionModal() {
+    // Set up the submit query when showing the modal
+    setUpSubmitQuery();
+    modal.style.display = 'block';
+}
+
+function displayQuestion() {
+    // Skip answered questions
+    while (currentQuestionIndex < totalQuestions && preRenderedQuestions[currentQuestionIndex].answered) {
+            currentQuestionIndex++;
+        }
 
     if (currentQuestionIndex < totalQuestions) {
         const currentQuestion = preRenderedQuestions[currentQuestionIndex];
         console.log('Current question object:', currentQuestion);
+        // Check if the data property exists on the current question
+        if (currentQuestion.data) {
+            console.log('Current Question Data:', currentQuestion.data);
 
+            const datatype = currentQuestion.data.datatype || "appropriate";
+            const mainColumn = currentQuestion.data.mainColumn; // Extracted mainColumn
+            const relatedColumn = currentQuestion.data.relatedColumn; // Extracted relatedColumn
+
+            console.log('Datatype:', datatype);
+            console.log('Main Column:', mainColumn); // Log the extracted mainColumn
+            console.log('Related Column:', relatedColumn); // Log the extracted relatedColumn
+        } else {
+            // If currentQuestion.data is undefined, handle the error or initialize it
+            console.error('Current Question Data is undefined.');
+            // Initialize currentQuestion.data or handle the lack of data appropriately
+        }
+
+        const datatype = currentQuestion.data && currentQuestion.data.datatype ? currentQuestion.data.datatype : "appropriate";
+        console.log('Datatype:', datatype);
+        const datatypeMessage = `The answer is expected to be in ${datatype} format.`;
+        document.getElementById('datatypeMessageContainer').innerText = datatypeMessage;
+        
         // Check if we are on the "find missing values" page and set displayedRowIdMissing
         if (currentUrl.includes('/find_missing_values')) {
             // Check if currentQuestion has a data property and a row_id within it
@@ -177,133 +310,104 @@
         updateQuestionCount();
         // Ensure the submit button cursor and disabled state are updated for the new question
         updateSubmitButtonCursor();
+    
+        // Check if this is the last question
+    if (currentQuestionIndex === totalQuestions - 1) {
+            showLastQuestionNotification(); // Call a function to display a notification
+        }
+    
     } else {
-        alert('All questions answered. Submitting form...');
+        //alert('All questions answered. Submitting form...');
+        handleAllQuestionsAnswered();
     }
 }
 
-            function formatQuestionText(questionText) {
+function formatQuestionText(questionText) {
                 return questionText.replace(/''/g, '_______');
             }
 
-            function updateQuestionCount() {
-    // Count the number of unanswered questions
+function updateQuestionCount() {
     const unansweredQuestions = preRenderedQuestions.filter(question => !question.answered).length;
-
-    // Update the question count display. The current question number should be the index of the current question
-    // among the unanswered questions + 1, because index is 0-based and we want to display a 1-based count.
-    const currentQuestionNumber = preRenderedQuestions.slice(0, currentQuestionIndex + 1).filter(question => !question.answered).length;
+    const currentQuestionNumber = preRenderedQuestions.slice(0, currentQuestionIndex).filter(question => !question.answered).length + 1; // Adjusted to reflect the current position
 
     questionCount.textContent = `Question ${currentQuestionNumber} of ${unansweredQuestions}`;
 }
 
+function submitAnswer() {
+    
+    const userQuery = userQueryInput.value.trim();
+    const expectedDatatype = preRenderedQuestions[currentQuestionIndex].data.datatype;
 
-            function answerYes_index() {
-        const modal = document.getElementById('queryModal');
-        modal.style.display = 'block';
-
-        
-        submitQueryBtn.addEventListener('click', function () {
-            const userQueryInput = document.getElementById('user-query-input');
-            const userQuery = userQueryInput.value.trim();
-
-            if (userQuery !== '') {
-                // Extract question details from the current question
-                const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-
-                // Send the user-provided answer to the server
-                updateDatabaseWithAnswer(userQuery, currentQuestion);
-
-                // Clear the input field
-                userQueryInput.value = '';
-
-                // Close the modal
-                modal.style.display = 'none';
-            } else {
-                alert('Please provide a valid query.');
-            }
-        });
-
-        const closeModalBtn = document.getElementById('closeModal');
-        closeModalBtn.addEventListener('click', function () {
-            modal.style.display = 'none';
-        });
+    // Validate user input
+    if (!validateUserInput(userQuery, expectedDatatype)) {
+        displayErrorMessage(`Invalid input. Please enter a valid ${expectedDatatype}.`);
+        return; // Prevent form submission
     }
 
-function findMissingPageAnswerYes() {
-    const modal = document.getElementById('queryModal');
-    modal.style.display = 'block';
-        submitQueryBtn.addEventListener('click', function () {
-        const userQueryInput = document.getElementById('user-query-input');
-        const userQuery = userQueryInput.value.trim();
+    // If the input is valid, prepare the data for submission
+    if (userQuery !== '') {
+        const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+        const dataToSend = {
+            rowId: currentQuestion.data.row_id,
+            mainColumn: currentQuestion.data.mainColumn,
+            relatedColumn: currentQuestion.data.relatedColumn,
+            answer: userQuery
+        };
 
-        if (userQuery !== '') {
-            const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-            const questionDetails = currentQuestion.name.split('_');
-            const mainColumn = questionDetails[2]; 
-            const relatedColumn = questionDetails[3]; 
-
-            const dataToSend = {
-                rowId: displayedRowIdMissing, 
-                mainColumn: mainColumn, 
-                relatedColumn: relatedColumn, 
-                answer: userQuery
-            };
-
-            // Debugging: Log the data being sent
-            console.log(`Sending data: ${JSON.stringify(dataToSend)}`);
-
-            fetch('/process_answers', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(dataToSend),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === "success") {
-                    // Mark the current question as answered
-                    preRenderedQuestions[currentQuestionIndex].answered = true;
-
-                    // Find the next unanswered question
-                    const nextUnansweredIndex = preRenderedQuestions.findIndex((question, index) => index > currentQuestionIndex && !question.answered);
-                console.log('Response from server:', data);
-                if (nextUnansweredIndex !== -1) {
-                        currentQuestionIndex = nextUnansweredIndex;
-                        displayQuestion();
+        // Send the data to the server
+        sendDataToServer(dataToSend, function (success) { // Pass a callback function for success
+            if (success) {
+                // Clear the input field only after successful submission
+                userQueryInput.value = '';
+                // Move to the next question or end the questionnaire
+                currentQuestionIndex++;
+                if (currentQuestionIndex < totalQuestions) {
+                    displayQuestion();
                 } else {
-                    // Enable the button and display an alert
-                    submitQueryBtn.disabled = false;
-                    alert('All questions answered. Submitting form...');
+                    //alert('All questions answered. Submitting form...');
+                    handleAllQuestionsAnswered();
                 }
-            } else {
-                    // Handle error or unsuccessful response
-                    console.error('Error submitting answer:', data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                // Enable the button in case of an error
-                submitQueryBtn.disabled = false;
-            });
+            }
+        });
+    }
+}
 
-            // Clear the input field and close the modal
-            userQueryInput.value = '';
-            modal.style.display = 'none';
-        } else {
-            submitQueryBtn.disabled = false;
-            
-        }
-    });
-
-    const closeModalBtn = document.getElementById('closeModal');
-    closeModalBtn.addEventListener('click', function () {
-        modal.style.display = 'none';
+// This function is called when the 'Yes' button is clicked on the index page
+function answerYes_index() {
+    modal.style.display = 'block'; // Show the modal
+    // Add event listener to the close button of the modal
+    closeModalBtn.addEventListener('click', function() {
+        modal.style.display = 'none'; // Hide the modal
     });
 }
-            // Function to update the database with the provided answer
-            function updateDatabaseWithAnswer(userQuery, currentQuestion) {
+
+function validateUserInput(input, datatype) {
+    // Use regular expressions to test the input based on the expected datatype
+    const regexPatterns = {
+        'integer': /^\d+$/, // Matches a sequence of digits (no decimal)
+        'float': /^\d+(\.\d+)?$/, // Matches a floating point number (integer part plus optional decimal part)
+        'date': /^\d{4}-\d{2}-\d{2}$/, // Matches a simple YYYY-MM-DD date format
+        'text': /^(?=.*[A-Za-z0-9])[A-Za-z0-9@.]+$/ // Requires at least one alphanumeric character, allows '@' and '.' for emails
+    };
+
+    // Check if the datatype is known and the pattern exists
+    if (regexPatterns.hasOwnProperty(datatype)) {
+        // Test the input against the corresponding regex pattern
+        return regexPatterns[datatype].test(input);
+    } else {
+        // If the datatype is unknown, log an error and return false
+        console.error(`Unknown datatype '${datatype}' for validation.`);
+        return false;
+    }
+}
+
+function findMissingPageAnswerYes() {
+    modal.style.display = 'block';
+    
+}
+
+// Function to update the database with the provided answer
+function updateDatabaseWithAnswer(userQuery, currentQuestion) {
                 const [_, rowId, mainColumn, relatedColumn] = currentQuestion.name.split('_');
 
                 // Dynamically extract the relatedColumn from the question text
@@ -335,7 +439,8 @@ function findMissingPageAnswerYes() {
                     if (currentQuestionIndex < totalQuestions) {
                         displayQuestion();
                     } else {
-                        alert('All questions answered. Submitting form...');
+                        //alert('All questions answered. Submitting form...');
+                        handleAllQuestionsAnswered();
                     }
                 })
                 .catch(error => console.error(error));
@@ -361,7 +466,8 @@ function answerNo_index() {
         if (currentQuestionIndex < totalQuestions) {
             displayQuestion();
         } else {
-            alert('All questions answered. Submitting form...');
+            //alert('All questions answered. Submitting form...');
+            handleAllQuestionsAnswered();
         }
     })
     .catch(error => console.error(error));
@@ -373,11 +479,12 @@ function findMissingPageAnswerNo() {
         displayQuestion();
         console.log(`Missing Page Answer No : ${displayedRowIdMissing}`);
     } else {
-        alert('All questions answered. Submitting form...');
+        //alert('All questions answered. Submitting form...');
+        handleAllQuestionsAnswered();
     }
 }
 
-            function goBack_index() {
+function goBack_index() {
                     currentQuestionIndex--;
                     if (currentQuestionIndex >= 0) {
                         displayQuestion();
@@ -385,29 +492,23 @@ function findMissingPageAnswerNo() {
                         alert('No more previous questions.');
                         currentQuestionIndex = 0;
                     }
-                    
                 }
                 
-                function findMissingPageGoBack() {
-    // Decrement currentQuestionIndex to start looking for the previous unanswered question
-    currentQuestionIndex--;
-
-    // Loop backwards through the questions to find the first unanswered one
-    while (currentQuestionIndex >= 0 && preRenderedQuestions[currentQuestionIndex].answered) {
+function findMissingPageGoBack() {
+    // Decrement index and skip answered questions
+    do {
         currentQuestionIndex--;
-    }
+    } while (currentQuestionIndex >= 0 && preRenderedQuestions[currentQuestionIndex].answered);
 
-    // Check if an unanswered question was found
     if (currentQuestionIndex >= 0) {
-        displayQuestion(); // Display the previous unanswered question
+        displayQuestion();
     } else {
-        // If no unanswered question was found (i.e., we've reached the beginning), 
-        // reset currentQuestionIndex and inform the user
-        currentQuestionIndex = 0; // Reset to the first question in the array
         alert('No more previous questions.');
+        currentQuestionIndex = 0; // Reset to the first question if needed
     }
 }
-                function findMissingValues() {
+                
+function findMissingValues() {
                 const filteredMissingQuestions = preRenderedQuestions.filter(question => {
                     const mainColumn = question.message.split("'")[1];
                     const mainColumnValue = row[mainColumn];
@@ -431,9 +532,8 @@ function findMissingPageAnswerNo() {
                 updateGeneratedQueries();
             }
             
-            function showFlaggedValuesQuestions() {
+function showFlaggedValuesQuestions() {
     console.log('Show Flagged Values button clicked');
-
     // Make an AJAX request to fetch flagged values questions
     fetch('/show_flagged_values_questions', {
         method: 'GET',
@@ -444,17 +544,14 @@ function findMissingPageAnswerNo() {
     .then(response => response.json())
     .then(data => {
         const flaggedValuesQuestions = data.questions;
-
         // Update the question container with flagged values questions
         questionContainer.innerHTML = ''; // Clear existing content
-
         // Iterate through flagged values questions and append to the question container
         flaggedValuesQuestions.forEach(question => {
             const questionElement = document.createElement('p');
             questionElement.textContent = question;
             questionContainer.appendChild(questionElement);
         });
-
         // Hide other buttons on the flagged values page
         yesBtn.style.display = 'none';
         noBtn.style.display = 'none';
@@ -468,8 +565,8 @@ function findMissingPageAnswerNo() {
     .catch(error => console.error(error));
 }
 
-            // Function to handle button clicks on the index page
-            function handleIndexPageButtonClick(buttonId) {
+// Function to handle button clicks on the index page
+function handleIndexPageButtonClick(buttonId) {
                 if (buttonId === 'yes') {
                     answerYes_index();
                 } else if (buttonId === 'no') {
@@ -479,7 +576,7 @@ function findMissingPageAnswerNo() {
                 }
             }
 
-            function handleFindMissingPageButtonClick(buttonId) {
+function handleFindMissingPageButtonClick(buttonId) {
             // Function for handling button clicks on the find_missing_values page
             if (buttonId === 'yes') {
                 findMissingPageAnswerYes();
@@ -503,8 +600,8 @@ document.getElementById('submit-answer-btn').addEventListener('click', function 
     handleFlaggedValuesButtonClick('submit-answer');
 });
 
-            // Event listener for the 'Show Flagged Values' button
-            document.getElementById('show-flagged-values-btn').addEventListener('click', function() {
+// Event listener for the 'Show Flagged Values' button
+document.getElementById('show-flagged-values-btn').addEventListener('click', function() {
     fetch('/show_flagged_values_questions', {
         method: 'GET',
         headers: {
@@ -544,20 +641,20 @@ document.getElementById('submit-answer-btn').addEventListener('click', function 
     submitAnswerBtn.style.display = 'inline-block';
 });
 
-            // Event listeners for index page buttons
-            document.getElementById('index-yes-btn').addEventListener('click', function () {
+// Event listeners for index page buttons
+document.getElementById('index-yes-btn').addEventListener('click', function () {
                 handleIndexPageButtonClick('yes');
             });
 
-            document.getElementById('index-no-btn').addEventListener('click', function () {
+document.getElementById('index-no-btn').addEventListener('click', function () {
                 handleIndexPageButtonClick('no');
             });
 
-            document.getElementById('index-back-btn').addEventListener('click', function () {
+document.getElementById('index-back-btn').addEventListener('click', function () {
                 handleIndexPageButtonClick('back');
             });
 
-            document.getElementById('show-flagged-values-no-btn').addEventListener('click', function () {
+document.getElementById('show-flagged-values-no-btn').addEventListener('click', function () {
                 currentQuestionIndex++;
                 if (currentQuestionIndex < preRenderedQuestions.length) {
                     displayQuestion();
@@ -566,7 +663,7 @@ document.getElementById('submit-answer-btn').addEventListener('click', function 
                 }
             });
             
-            document.getElementById('show-flagged-values-back-btn').addEventListener('click', function () {
+document.getElementById('show-flagged-values-back-btn').addEventListener('click', function () {
                 currentQuestionIndex--;
                 if (currentQuestionIndex >= 0) {
                     displayQuestion();
@@ -576,26 +673,62 @@ document.getElementById('submit-answer-btn').addEventListener('click', function 
                 }
             });
 
-            // Event listeners for find_missing_values page buttons
-            findMissingYesBtn.addEventListener('click', function () {
+// Event listeners for find_missing_values page buttons
+findMissingYesBtn.addEventListener('click', function () {
                 handleFindMissingPageButtonClick('yes');
             });
 
-            findMissingNoBtn.addEventListener('click', function () {
+findMissingNoBtn.addEventListener('click', function () {
                 handleFindMissingPageButtonClick('no');
             });
 
-            findMissingBackBtn.addEventListener('click', function () {
+findMissingBackBtn.addEventListener('click', function () {
                 handleFindMissingPageButtonClick('back');
             });
 
-                if (totalQuestions > 0) {
-                    displayQuestion();
-                } else {
-                    alert('No questions found.');
-                }
-        });
-    </script>
+function handleAllQuestionsAnswered() {
+    // Close the modal and clear the input field
+    closeModal();
+    userQueryInput.value = '';
 
+    // Hide all existing buttons
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => button.style.display = 'none');
+
+    // Display a completion message
+    questionContainer.innerHTML = '<p class="completion-message">Thank you! You have answered all the questions.</p>';
+
+    // Create the "Take me back to the Home Page" button
+    const homeButton = document.createElement('button');
+    homeButton.textContent = 'Take me back to the Home Page';
+    homeButton.id = 'home-page-button';
+    homeButton.className = 'action-btn'; // Reuse the action-btn class for styling
+    homeButton.onclick = function() { window.location.href = 'http://127.0.0.1:5500/templates/homepage.html'; };
+    
+    // Append the new button to the container
+    document.querySelector('.container').appendChild(homeButton);
+}
+
+function showLastQuestionNotification() {
+    const notificationContainer = document.createElement('div');
+    notificationContainer.textContent = "This is the last question";
+    notificationContainer.className = 'last-question-notification'; // Use the class instead of inline styles
+
+    // Append this notification to the question container or any other suitable place in your DOM
+    questionContainer.appendChild(notificationContainer);
+
+    // Optionally, remove the notification after a few seconds
+    setTimeout(() => {
+        notificationContainer.remove();
+    }, 5000); // Adjust the time as needed
+}
+
+if (totalQuestions > 0) {
+    displayQuestion();
+    } else {
+        alert('No questions found.');
+            }
+});
+    </script>
 </body>
 </html>

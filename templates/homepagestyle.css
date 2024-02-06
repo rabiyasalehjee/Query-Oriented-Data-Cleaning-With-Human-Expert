@@ -1,0 +1,87 @@
+body, html {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #e9ecef; /* The full-screen background color */
+    display: flex; /* Enables flexbox layout */
+    justify-content: center; /* Centers content horizontally */
+    align-items: center; /* Centers content vertically */
+    overflow: hidden; /* Prevents scrolling the full page */
+    text-align: center; /* Centers text horizontally */
+}
+
+/* The main container that holds the content and allows it to scroll */
+.main-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* Enables scrolling within the container */
+}
+
+/* The fixed background that will not scroll */
+.background-fixed {
+    position: fixed;
+    top: 50%; /* Start at the middle of the screen */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #343a40; /* The half-screen background color */
+    z-index: -1; /* Ensures it stays behind the scrollable content */
+}
+
+.container {
+    width: 100%; /* Makes the container full width */
+    height: 100%; /* Makes the container full height */
+    display: flex; /* Enables flexbox layout inside the container */
+    justify-content: center; /* Centers content horizontally */
+    align-items: center; /* Centers content vertically */
+    flex-direction: column; /* Stacks children elements vertically */
+    background-color: #fff; /* Background color for the container */
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    box-sizing: border-box; /* Includes padding in the element's total width and height */
+}
+
+h1 {
+    color: #333;
+    font-size: 2.5em; /* Larger font size for the heading */
+}
+
+p {
+    color: #666;
+    font-size: 1.2em; /* Larger font size for the paragraph */
+}
+
+button {
+    padding: 15px 30px;
+    border: none;
+    background-color: #007bff;
+    color: #fff;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1em;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    outline: none; /* Removes the outline on focus for aesthetics */
+}
+
+button:hover, button:focus {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+}
+
+.animate {
+    animation: pulseAnimation 2s infinite;
+}
+
+@keyframes pulseAnimation {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}

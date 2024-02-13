@@ -19,6 +19,11 @@ from rules import apply_rules, apply_rules_to_database
 from flask_cors import CORS
 from relationships import define_relationships
 from sqlalchemy import inspect
+import logging
+
+# Setup basic logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 pymysql.install_as_MySQLdb()
 
@@ -153,14 +158,17 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
         for relationship in relationships_config:
             main_column = relationship['main_column']
             related_column = relationship['related_column']
+            main_value = row[main_column]
+            related_value = row[related_column]
             question_name = f'q_{index}_ml_correct_{main_column}_{related_column}'
 
             # Add the row ID to the question data
             question_data = {
                 'row_id': row_id,  
                 'mainColumn': main_column,
+                'mainValue': main_value,
                 'relatedColumn': related_column,
-                
+                'relatedValue': related_value
             }
 
             main_value = row[main_column]
@@ -246,8 +254,13 @@ def index():
     pre_rendered_questions = json.dumps([
         {
             "name": question["name"],
-            "message": question["message"].strip().replace('"', '\\"'),  # Escape double quotes
-            "row_id": question.get('data', {}).get('row_id', None)  # Include row_id in the question
+            "message": question["message"],
+            "row_id": question['data']['row_id'],
+            "mainColumn": question['data']['mainColumn'],
+            "mainValue": question['data']['mainValue'],
+            "relatedColumn": question['data']['relatedColumn'],
+            "relatedValue": question['data']['relatedValue'],
+            # ... include any other necessary data
         } for question in questions_ml
     ], ensure_ascii=False)
 
@@ -256,6 +269,60 @@ def index():
         print("")
     
     return render_template('index.html', pre_rendered_questions=pre_rendered_questions, current_row_id=current_row_id)
+
+@app.route('/update_dialog_values', methods=['POST'])
+def update_dialog_values():
+    logging.debug("Received request to '/update_dialog_values'")
+    data = request.get_json()
+    logging.debug(f"Request data: {data}")
+
+    try:
+        row_id = data['rowId']
+        main_column_name = data['mainColumn']
+        related_column_name = data['relatedColumn']
+
+        # Fetch the record to update from the database using the row ID
+        record = db.session.get(YourTable, row_id)
+        if record is None:
+            return jsonify({"status": "error", "message": "Record not found"}), 404
+
+        # Update the main column if a new value is provided
+        if 'mainValue' in data and data['mainValue'] is not None:
+            setattr(record, main_column_name, data['mainValue'])
+
+        # Update the related column if a new value is provided
+        if 'relatedValue' in data and data['relatedValue'] is not None:
+            setattr(record, related_column_name, data['relatedValue'])
+
+        db.session.commit()
+        logging.info(f"Successfully updated row ID: {row_id}")
+        response_data = {
+            "status": "success",
+            "message": "Values updated successfully",
+            "updatedValues": {
+                "mainValue": data.get('mainValue'),
+                "relatedValue": data.get('relatedValue'),
+                "rowId": row_id
+            }
+        }
+        logging.debug(f"Response data: {response_data}")
+        return jsonify(response_data), 200
+
+    except Exception as e:
+        logging.error(f"Error updating values: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "Failed to update values"}), 500
+
+def update_row_in_database(row_id, main_value, related_value):
+    # Implement the logic to update the database row identified by row_id
+    # with the new values for the main and related columns
+    record = YourTable.query.filter_by(ID=row_id).first()
+    if record:
+        record.main_column = main_value  # Use the actual column name
+        record.related_column = related_value  # Use the actual related column name
+        db.session.commit()
+    else:
+        print(f"No record found with ID: {row_id}")
+
 
 @app.route('/find_missing_values')
 def find_missing_values():

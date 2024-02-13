@@ -371,3 +371,209 @@ button {
     text-align: center;
 }
 
+/* Index Yes Dialog Box*/
+
+.dialog {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 15px;
+    padding-top: 40px; /* Extra padding at the top for the close button */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #fff;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    width: 40%; /* Fixed width */
+    max-width: 90%; /* Maximum width of the dialog box */
+    box-sizing: border-box; /* Ensures padding doesn't add to the width */
+    z-index: 1000;
+    position: relative;
+}
+  
+.row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Spread content evenly */
+    margin-bottom: 15px;
+    padding: 10px;
+    border-bottom: 1px solid #eaeaea;
+}
+
+.row:last-child {
+    border-bottom: none;
+}
+
+.column-name, .default-value, .modify-btn-group, .input-field {
+    /* Using 'min-width' and 'max-width' to define ranges for different elements */
+    min-width: 0; /* Prevent flex items from overflowing */
+    white-space: nowrap; /* Prevent text from wrapping */
+    overflow: hidden; /* Hide overflow */
+    text-overflow: ellipsis; /* Add an ellipsis to text that overflows */
+}
+
+.column-name {
+    flex: 1; /* Allows the column name to grow */
+    margin-right: 10px;
+    text-align: left;
+}
+
+.default-value {
+    margin-right: 10px; /* Adjust space between default value and buttons */
+    text-align: center;
+    flex-basis: 100px; /* Fixed basis for default value, adjust as needed */
+    flex-shrink: 0; /* Prevent the default value from shrinking */
+}
+
+.modify-btn-group {
+    display: flex;
+    flex-shrink: 0; /* Prevent button group from shrinking */
+}
+
+.modify-btn {
+    padding: 4px 8px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease-in-out;
+    width: 60px; /* Smaller button width */
+    
+}
+
+  .yes-btn {
+    background-color: #5cb85c;
+    color: white;
+    border-color: #4cae4c;
+  }
+  
+  .no-btn {
+    background-color: #d9534f;
+    color: white;
+    border-color: #d43f3a;
+  }
+  
+.modify-btn:hover {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+  
+.input-field {
+    flex: 1; /* Allows the input field to grow twice as much as the column names */
+    margin-left: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.input-error {
+    border-color: red; /* Highlight error fields */
+}
+
+.input-error-highlight {
+    border: 1px solid red; /* Red border to indicate error */
+}
+
+.input-error-message {
+    color: red;
+    font-size: 0.8rem;
+    display: none; /* Initially hidden */
+    margin-top: 4px;
+}
+
+.input-shake {
+    animation: input-shake-animation 0.82s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes input-shake-animation {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+
+  
+  #submitAnswer {
+    background-color: #337ab7;
+    color: white;
+    padding-top: 20px;
+    padding: 10px 15px;
+    border-top: 2px solid #eaeaea;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    display: block;
+    margin: 20px auto 0;
+    font-weight: bold;
+  }
+  
+  #submitAnswer:hover {
+    background-color: #286090;
+  }
+  
+  /* Adjusting the close button of dialog box */
+  .close-dialog {
+    position: absolute;
+    top: 2px; /* Adjust as needed */
+    right: 15px; /* Adjust as needed */
+    padding: 0;
+    background-color: transparent;
+    color: #aaa;
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+}
+  
+  .close-dialog:hover {
+    color: #f44336;
+  }
+  
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    /* Increase width for better readability on smaller screens */
+    .dialog {
+        width: 95%;
+    }
+
+    .input-field, .column-name, .modify-btn-group, .default-value {
+        /* Full width on smaller screens */
+        flex-basis: calc(100% - 20px); 
+        margin-bottom: 10px; /* Add spacing */
+    }
+
+    .modify-btn-group {
+        justify-content: flex-start; /* Align buttons to the start */
+    }
+}
+
+@media (max-width: 480px) {
+    .row {
+        flex-direction: column; /* Stack elements vertically */
+    }
+
+    /* Full width for all elements on smallest screens */
+    .modify-btn, .default-value, .column-name, .input-field {
+        flex-basis: 100%;
+        margin-bottom: 10px;
+    }
+}
+  
+/* Overlay styles */
+.overlay {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.5); /* Semi-transparent black background */
+    z-index: 999; /* Below the dialog box */
+  }
+  
+  /* Active state when the dialog is open */
+  .overlay.active {
+    display: block;
+    backdrop-filter: blur(1px); /* Apply blur effect */
+  }
+  

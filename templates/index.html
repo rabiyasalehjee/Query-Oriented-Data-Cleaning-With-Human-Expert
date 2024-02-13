@@ -35,6 +35,33 @@
             <button id="submit-query-btn">Submit Your Answer</button>
         </div>
     </div>
+
+    <!-- From here is the dialog box for index Yes button-->
+<div id="dialog" class="dialog" style="display: none;">
+    <button id="closeDialog" class="close-dialog">X</button>
+    <div class="row">
+        <span class="column-name" id="mainColumnName">Column Name</span>
+        <span class="default-value" id="mainDefaultValue">Default Value</span>
+        <button class="modify-btn yes-btn">Yes</button>
+        <button class="modify-btn no-btn">No</button>
+        <input type="text" id="mainInputField" class="input-field" placeholder="Please Enter the Correct Value for Main Column" style="display: none;">
+        <div id="mainInputError" class="input-error-message">Cannot be empty</div>
+    </div>
+    <div class="row">
+        <span class="column-name" id="relatedColumnName">Related Column Name</span>
+        <span class="default-value" id="relatedDefaultValue">Related Default Value</span>
+        <button class="modify-btn yes-btn">Yes</button>
+        <button class="modify-btn no-btn">No</button>
+        <input type="text" id="relatedInputField" class="input-field" placeholder="Please Enter the Correct Value for Related Column" style="display: none;">
+        <div id="relatedInputError" class="input-error-message">Cannot be empty</div>
+    </div>
+    
+    <button id="submitAnswer">Submit Yes Answer</button>
+</div>
+<div id="overlay" class="overlay"></div>
+<div class="row" id="mainRow"><!-- Content for the main column --></div>
+<div class="row" id="relatedRow"><!-- Content for the related column --></div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function () {
         
@@ -133,7 +160,7 @@ inputField.addEventListener('input', function () {
     errorMessageContainer.style.display = 'none';
     inputField.classList.remove('error');
 });
-
+//for missing page
 document.getElementById('submit-query-btn').addEventListener('click', function(event) {
     event.preventDefault();
     
@@ -230,9 +257,26 @@ function sendDataToServer(dataToSend) {
 }
 
 function closeModal() {
-    const modal = document.getElementById('queryModal');
-    modal.style.display = 'none';
-}
+    const queryModal = document.getElementById('queryModal');
+    const dialogModal = document.getElementById('dialog');
+    const overlay = document.getElementById('overlay');
+
+    if (queryModal) {
+        queryModal.style.display = 'none';
+    }
+
+    if (dialogModal) {
+        dialogModal.style.display = 'none';
+    }
+
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+    document.getElementById('mainInputField').value = '';
+    document.getElementById('mainInputField').style.display = 'none';
+    document.getElementById('relatedInputField').value = '';
+    document.getElementById('relatedInputField').style.display = 'none';
+    }
 
 function showQuestionModal() {
     // Set up the submit query when showing the modal
@@ -240,14 +284,17 @@ function showQuestionModal() {
     modal.style.display = 'block';
 }
 
-function displayQuestion() {
+function displayQuestion(updatedQuestionIndex = currentQuestionIndex) {
+    // If updatedQuestionIndex is provided, use it; otherwise, use currentQuestionIndex
+    const questionIndex = updatedQuestionIndex !== undefined ? updatedQuestionIndex : currentQuestionIndex;
+  
     // Skip answered questions
-    while (currentQuestionIndex < totalQuestions && preRenderedQuestions[currentQuestionIndex].answered) {
-            currentQuestionIndex++;
-        }
+    while (questionIndex < totalQuestions && preRenderedQuestions[questionIndex].answered) {
+        questionIndex++;
+    }
 
-    if (currentQuestionIndex < totalQuestions) {
-        const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+    if (questionIndex < totalQuestions) {
+        const currentQuestion = preRenderedQuestions[questionIndex];
         console.log('Current question object:', currentQuestion);
         // Check if the data property exists on the current question
         if (currentQuestion.data) {
@@ -286,13 +333,20 @@ function displayQuestion() {
             console.log(`Currently Displayed Row ID: ${displayedRowId}`);
         }
 
-        // Determine whether we're dealing with a flagged value question or not
-        if (currentQuestion.hasOwnProperty('question')) {
-            // For flagged value questions
-            questionContainer.innerHTML = `<label>${formatQuestionText(currentQuestion.question)}</label>`;
+        const questionLabel = questionContainer.querySelector('label');
+
+        // Check if the question label exists
+        if (questionLabel) {
+            if (currentQuestion.hasOwnProperty('question')) {
+                // For flagged value questions
+                questionLabel.textContent = formatQuestionText(currentQuestion.question);
+            } else {
+                // For regular questions (assuming 'message' field contains the question text)
+                questionLabel.textContent = formatQuestionText(currentQuestion.message);
+            }
         } else {
-            // For other question types (assuming 'message' field contains the question text)
-            questionContainer.innerHTML = `<label>${formatQuestionText(currentQuestion.message)}</label>`;
+            // If the question label does not exist, create it
+            questionContainer.innerHTML = `<label>${formatQuestionText(currentQuestion.message || currentQuestion.question)}</label>`;
         }
 
         // Add tooltip for rule violation text if it exists
@@ -485,14 +539,27 @@ function findMissingPageAnswerNo() {
 }
 
 function goBack_index() {
-                    currentQuestionIndex--;
-                    if (currentQuestionIndex >= 0) {
-                        displayQuestion();
-                    } else {
-                        alert('No more previous questions.');
-                        currentQuestionIndex = 0;
-                    }
-                }
+    let foundUnanswered = false;
+    // Decrement currentQuestionIndex until an unanswered question is found or the beginning of the array is reached
+    for (let i = currentQuestionIndex - 1; i >= 0; i--) {
+        if (!preRenderedQuestions[i].answered) {
+            currentQuestionIndex = i;
+            foundUnanswered = true;
+            break;
+        }
+    }
+
+    // If an unanswered question is found, display it
+    if (foundUnanswered) {
+        displayQuestion();
+    } else {
+        // Optionally, handle the case where no previous unanswered questions are found
+        alert("No more previous unanswered questions.");
+    }
+}
+
+
+
                 
 function findMissingPageGoBack() {
     // Decrement index and skip answered questions
@@ -641,15 +708,365 @@ document.getElementById('show-flagged-values-btn').addEventListener('click', fun
     submitAnswerBtn.style.display = 'inline-block';
 });
 
-// Event listeners for index page buttons
-document.getElementById('index-yes-btn').addEventListener('click', function () {
-                handleIndexPageButtonClick('yes');
+//index page
+document.getElementById('index-yes-btn').addEventListener('click', function() {
+    const dialog = document.getElementById('dialog');
+    const overlay = document.getElementById('overlay');
+
+    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+    if (currentQuestion) { 
+    // Access properties directly since there's no 'data' property
+    const mainColumn = currentQuestion.mainColumn;
+    const mainValue = currentQuestion.mainValue; // This is not provided in the object logged in the console
+    const relatedColumn = currentQuestion.relatedColumn; // This is not provided either
+    const relatedValue = currentQuestion.relatedValue; // This is not provided either
+
+        updateDialog(mainColumn, mainValue, relatedColumn, relatedValue);
+        dialog.style.display = 'block';
+        overlay.classList.add('active');
+    } else {
+        console.error('Current question or current question data is undefined:', currentQuestion);
+    }
+});
+
+// Flag variables to keep track of whether 'Yes' or 'No' has been clicked
+let yesClicked = false;
+let noClicked = false;
+
+//index page
+document.querySelectorAll('.modify-btn.yes-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        yesClicked = true;
+        noClicked = false;
+        // Determine which input field to show based on the parent row's ID
+        let parentRow = this.parentElement; // Get the parent row of the clicked button
+
+        // Only select the input field that is a child of this parent row
+        let inputField = parentRow.querySelector('.input-field');
+
+        // Display the relevant input field
+        inputField.style.display = 'block';
+        inputField.style.opacity = '0';
+        setTimeout(function() {
+            inputField.style.opacity = '1';
+        }, 10); // Fade in effect
+    });
+});
+
+//index page
+let noButtons = document.querySelectorAll('.no-btn');
+noButtons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        yesClicked = false; 
+        noClicked = true;
+
+        let parentRow = this.parentElement;
+        let inputField = parentRow.querySelector('.input-field');
+        let errorContainer = parentRow.querySelector('.input-error-message');
+
+        console.log('No button clicked for row:', parentRow.id); // Debugging line
+        console.log('Error container should be hidden:', errorContainer.id); // Debugging line
+
+        // Hide the input field immediately
+        inputField.style.display = 'none';
+        
+        // Hide the error message immediately
+        errorContainer.style.display = 'none';
+        console.log('Error container display after hiding:', errorContainer.style.display); // Debugging line
+    });
+});
+
+//index page
+document.getElementById('submitAnswer').addEventListener('click', function() {
+    const mainInputField = document.getElementById('mainInputField');
+    const relatedInputField = document.getElementById('relatedInputField');
+    const mainInputError = document.getElementById('mainInputError');
+    const relatedInputError = document.getElementById('relatedInputError');
+    const mainDefaultValue = document.getElementById('mainDefaultValue').textContent;
+    const relatedDefaultValue = document.getElementById('relatedDefaultValue').textContent;
+
+    // Get the trimmed values of the input fields
+    const mainFieldValue = mainInputField.value.trim();
+    const relatedFieldValue = relatedInputField.value.trim();
+
+    // Determine visibility of the input fields
+    const mainFieldVisible = mainInputField.style.display !== 'none';
+    const relatedFieldVisible = relatedInputField.style.display !== 'none';
+
+    // Reset error states
+    mainInputError.style.display = 'none';
+    relatedInputError.style.display = 'none';
+
+    // Checkpoint 5: One field is visible and empty, and the other wasn't opened
+    if ((mainFieldVisible && !mainFieldValue && !relatedFieldVisible) || (relatedFieldVisible && !relatedFieldValue && !mainFieldVisible)) {
+        if (mainFieldVisible && !mainFieldValue) {
+            mainInputError.style.display = 'block';
+        }
+        if (relatedFieldVisible && !relatedFieldValue) {
+            relatedInputError.style.display = 'block';
+        }
+        return; // Prevent form submission
+    }
+
+    // Check if both fields are visible and have a value
+    if (mainFieldVisible && !mainFieldValue && relatedFieldVisible && !relatedFieldValue) {
+        // Both fields are visible but empty, show error message
+        mainInputError.style.display = 'block';
+        relatedInputError.style.display = 'block';
+        return; // Prevent form submission
+    }
+
+    // Decide which values to submit based on visibility and user interaction
+    const mainValueToSubmit = mainFieldVisible && mainFieldValue ? mainFieldValue : mainDefaultValue;
+    const relatedValueToSubmit = relatedFieldVisible && relatedFieldValue ? relatedFieldValue : relatedDefaultValue;
+
+    // Prepare data to send
+    const dataToSend = {
+        rowId: displayedRowId, 
+        mainValue: mainValueToSubmit,
+        relatedValue: relatedValueToSubmit
+    };
+
+    // Perform validation to ensure at least one field has a value
+    if (!mainFieldVisible && !relatedFieldVisible) {
+        alert("Please provide an answer or close the dialog box.");
+        return; // Prevent form submission or further processing
+    }
+
+    // Send the data to the server
+    submitDialogData(dataToSend);
+});
+
+
+
+function showError(inputField, message) {
+    let errorContainer = inputField.nextElementSibling;
+    inputField.classList.add('input-error-highlight', 'input-shake');
+    errorContainer.textContent = message;
+    errorContainer.style.display = 'block';
+}
+
+function hideError(inputField) {
+    let errorContainer = inputField.nextElementSibling;
+    inputField.classList.remove('input-error-highlight', 'input-shake');
+    errorContainer.style.display = 'none';
+}
+
+
+
+//index page
+function displayNextQuestionForIndexPage() {
+    let foundUnanswered = false;
+    // Increment currentQuestionIndex until an unanswered question is found or the end of the array is reached
+    while (currentQuestionIndex + 1 < totalQuestions && preRenderedQuestions[currentQuestionIndex + 1].answered) {
+        currentQuestionIndex++;
+    }
+
+    // Check if the next question is unanswered
+    if (currentQuestionIndex + 1 < totalQuestions && !preRenderedQuestions[currentQuestionIndex + 1].answered) {
+        currentQuestionIndex++;
+        foundUnanswered = true;
+    }
+
+    // If an unanswered question is found, display it
+    if (foundUnanswered) {
+        displayQuestion();
+    } else {
+        // Handle case where all questions have been answered
+        handleAllQuestionsAnswered();
+    }
+}
+//index page
+//index page
+function submitDialogData(data) {
+    // Fetch the column names and default values from the dialog display
+    const mainColumn = document.getElementById('mainColumnName').textContent;
+    const relatedColumn = document.getElementById('relatedColumnName').textContent;
+    const mainDefaultValue = document.getElementById('mainDefaultValue').textContent;
+    const relatedDefaultValue = document.getElementById('relatedDefaultValue').textContent;
+
+    // Initialize the payload with rowId and column names
+    const payload = {
+        rowId: data.rowId,
+        mainColumn: mainColumn,
+        relatedColumn: relatedColumn,
+        mainValue: (mainInputField.style.display !== 'none' && data.mainValue && data.mainValue.trim() !== '') ? data.mainValue.trim() : mainDefaultValue,
+        relatedValue: (relatedInputField.style.display !== 'none' && data.relatedValue && data.relatedValue.trim() !== '') ? data.relatedValue.trim() : relatedDefaultValue,
+    };
+
+    console.debug('Sending data to server:', payload);
+
+    // Make the POST request to the server endpoint
+    fetch('/update_dialog_values', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok. Status: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if(data.status === "success") {
+            console.log('Updated values from server:', data.updatedValues);
+            preRenderedQuestions[currentQuestionIndex].answered = true;
+            // Iterate through all questions and update those that match the rowId
+            preRenderedQuestions.forEach(question => {
+                if (question.row_id === data.updatedValues.rowId) {
+                    // Update the mainValue and relatedValue if they match the columns involved in the dialog
+                    if (question.mainColumn === mainColumn) {
+                        question.mainValue = data.updatedValues.mainValue;
+                        question.message = question.message.replace(mainDefaultValue, data.updatedValues.mainValue);
+                    }
+                    if (question.relatedColumn === relatedColumn) {
+                        question.relatedValue = data.updatedValues.relatedValue;
+                        question.message = question.message.replace(relatedDefaultValue, data.updatedValues.relatedValue);
+                    }
+                }
             });
 
+            // After updating, refresh the current question display or move to the next
+            displayNextQuestionForIndexPage();
+            closeModal();
+        } else {
+            console.error('Error updating values:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+    });
+}
+
+ //index page
+function clearErrorState() {
+    this.classList.remove('input-error');
+    this.placeholder = this === mainInputField ? "Please Enter the Correct Value for Main Column" : "Please Enter the Correct Value for Related Column";
+}
+
+const mainInputField = document.getElementById('mainInputField');
+const relatedInputField = document.getElementById('relatedInputField');
+
+mainInputField.addEventListener('input', clearErrorState);
+relatedInputField.addEventListener('input', clearErrorState);
+
+
+function updateCurrentQuestion(updatedValues) {
+    // Find the question in preRenderedQuestions by rowId and update its values
+    const questionIndex = preRenderedQuestions.findIndex(question => question.row_id == updatedValues.rowId);
+    if(questionIndex !== -1) {
+        preRenderedQuestions[questionIndex].mainValue = updatedValues.mainValue;
+        preRenderedQuestions[questionIndex].relatedValue = updatedValues.relatedValue;
+    } else {
+        console.error('Question not found in preRenderedQuestions:', updatedValues.rowId);
+    }
+}
+
+function updateDisplayWithNewValues(updatedValues) {
+    // Assuming 'question-container' is where the mainValue is displayed
+    const mainValueDisplay = document.getElementById('mainColumnName');
+    const relatedValueDisplay = document.getElementById('relatedColumnName');
+    
+    // Update the UI with the new values
+    if (mainValueDisplay && updatedValues.mainValue) {
+        mainValueDisplay.textContent = updatedValues.mainValue;
+    }
+    if (relatedValueDisplay && updatedValues.relatedValue) {
+        relatedValueDisplay.textContent = updatedValues.relatedValue;
+    }
+}
+
+
+function updateDialog(mainColumn, mainValue, relatedColumn, relatedValue) {
+    // Update the content of the first row with mainColumn and mainValue
+    document.getElementById('mainColumnName').textContent = mainColumn;
+    document.getElementById('mainDefaultValue').textContent = mainValue;
+
+    // Update the content of the second row with relatedColumn and relatedValue
+    document.getElementById('relatedColumnName').textContent = relatedColumn;
+    document.getElementById('relatedDefaultValue').textContent = relatedValue;
+
+    // Add event listeners for Yes/No buttons in both rows
+    const yesButtons = document.querySelectorAll('.yes-btn');
+    const noButtons = document.querySelectorAll('.no-btn');
+
+    yesButtons.forEach(button => button.addEventListener('click', handleYesClick));
+    noButtons.forEach(button => button.addEventListener('click', handleNoClick));
+}
+
+//index page
+function handleYesClick(event) {
+    // Show the input field to enter the correct value in the related row
+    const parentRow = event.target.closest('.row'); // Find the closest parent row of the clicked button
+    const inputField = parentRow.querySelector('.input-field');
+    inputField.style.display = 'block';
+}
+
+//index page
+function handleNoClick(event) {
+    // Find the closest parent row of the clicked button
+    const parentRow = event.target.closest('.row');
+
+    // Find the input field within this row
+    const inputField = parentRow.querySelector('.input-field');
+
+    // Check if the input field exists and hide it if so
+    if (inputField) {
+        inputField.style.display = 'none'; // Hide the input field
+
+        // Optionally, you might also want to clear any value that was entered
+        inputField.value = '';
+    }
+}
+
+//index page
+
+// Get input fields and error message containers
+
+    const mainInputError = document.getElementById('mainInputError');
+    const relatedInputError = document.getElementById('relatedInputError');
+
+    // Reset error state when user starts typing in the input fields
+    function resetErrorState(inputField, errorContainer) {
+        inputField.classList.remove('input-error-highlight', 'input-shake');
+        errorContainer.style.display = 'none';
+    }
+
+    mainInputField.addEventListener('input', function() {
+        resetErrorState(mainInputField, mainInputError);
+    });
+
+    relatedInputField.addEventListener('input', function() {
+        resetErrorState(relatedInputField, relatedInputError);
+    });
+
+    // Close dialog function updated to reset error states
+document.getElementById('closeDialog').addEventListener('click', function() {
+        const dialog = document.getElementById('dialog');
+        const overlay = document.getElementById('overlay');
+        yesClicked = false;
+        noClicked = false;
+        
+        // Hide the dialog and overlay
+        dialog.style.display = 'none';
+        overlay.classList.remove('active');
+
+        // Reset the input fields, error messages, and hide them
+        [mainInputField, relatedInputField].forEach(field => {
+            field.value = '';
+            field.style.display = 'none';
+            resetErrorState(field, field.nextElementSibling); // Assuming the next sibling is the error container
+        });
+    });
+
+
+//index page
 document.getElementById('index-no-btn').addEventListener('click', function () {
                 handleIndexPageButtonClick('no');
             });
-
+            
+//index page
 document.getElementById('index-back-btn').addEventListener('click', function () {
                 handleIndexPageButtonClick('back');
             });

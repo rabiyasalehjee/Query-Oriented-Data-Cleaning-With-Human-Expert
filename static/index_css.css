@@ -139,8 +139,6 @@ button {
     background-color: #f9f9f9;
 }
 
-
-
 /* Styling for the error message */
 .error-message {
     color: #d32f2f;
@@ -329,8 +327,8 @@ button {
 
 .tooltip-icon {
     cursor: pointer;
-    width: 16px; /* or your preferred size */
-    height: 16px; /* or your preferred size */
+    width: 16px; 
+    height: 16px; 
     vertical-align: middle;
     margin-left: 5px;
 }
@@ -492,9 +490,7 @@ button {
     40%, 60% { transform: translate3d(4px, 0, 0); }
 }
 
-
-  
-  #submitAnswer {
+    #submitAnswer {
     background-color: #337ab7;
     color: white;
     padding-top: 20px;
@@ -515,8 +511,8 @@ button {
   /* Adjusting the close button of dialog box */
   .close-dialog {
     position: absolute;
-    top: 2px; /* Adjust as needed */
-    right: 15px; /* Adjust as needed */
+    top: 2px; 
+    right: 15px; 
     padding: 0;
     background-color: transparent;
     color: #aaa;

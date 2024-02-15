@@ -44,7 +44,7 @@
         <span class="default-value" id="mainDefaultValue">Default Value</span>
         <button class="modify-btn yes-btn">Yes</button>
         <button class="modify-btn no-btn">No</button>
-        <input type="text" id="mainInputField" class="input-field" placeholder="Please Enter the Correct Value for Main Column" style="display: none;">
+        <input type="text" id="mainInputField" class="input-field" data-type="{{ mainColumnDatatype }}" placeholder="Please Enter the Correct Value for Main Column" title="Enter the new value for the main column here" style="display: none;">
         <div id="mainInputError" class="input-error-message">Cannot be empty</div>
     </div>
     <div class="row">
@@ -52,7 +52,7 @@
         <span class="default-value" id="relatedDefaultValue">Related Default Value</span>
         <button class="modify-btn yes-btn">Yes</button>
         <button class="modify-btn no-btn">No</button>
-        <input type="text" id="relatedInputField" class="input-field" placeholder="Please Enter the Correct Value for Related Column" style="display: none;">
+        <input type="text" id="relatedInputField" class="input-field" data-type="{{ relatedColumnDatatype }}" placeholder="Please Enter the Correct Value for Related Column" title="Enter the new value for the related column here" style="display: none;">
         <div id="relatedInputError" class="input-error-message">Cannot be empty</div>
     </div>
     
@@ -440,7 +440,7 @@ function validateUserInput(input, datatype) {
     const regexPatterns = {
         'integer': /^\d+$/, // Matches a sequence of digits (no decimal)
         'float': /^\d+(\.\d+)?$/, // Matches a floating point number (integer part plus optional decimal part)
-        'date': /^\d{4}-\d{2}-\d{2}$/, // Matches a simple YYYY-MM-DD date format
+        'date': /^\d{4}-(\d{1,2})-(\d{1,2})$/, // Matches YYYY-M-D, YYYY-MM-DD, YYYY-M-DD, YYYY-MM-D
         'text': /^(?=.*[A-Za-z0-9])[A-Za-z0-9@.]+$/ // Requires at least one alphanumeric character, allows '@' and '.' for emails
     };
 
@@ -453,6 +453,31 @@ function validateUserInput(input, datatype) {
         console.error(`Unknown datatype '${datatype}' for validation.`);
         return false;
     }
+}
+//for index page dialog box input field Function to validate input and apply animation if input is incorrect
+function validateAndAnimateInput(inputField, errorContainer, datatype) {
+    const isValid = validateUserInput(inputField.value.trim(), datatype);
+    if (!isValid) {
+        showError(inputField, errorContainer, `Value must be a ${datatype}.`);
+        inputField.classList.add('input-shake');
+        inputField.value = ''; // Clear the input field
+        setTimeout(() => {
+            inputField.classList.remove('input-shake');
+        }, 820); // Remove the class after the animation ends, which is 0.82s
+        return false;
+    }
+    hideError(inputField, errorContainer);
+    return true;
+}
+
+
+//for index page dialog box input field
+function applyVibrationAnimation(inputField) {
+    inputField.classList.add('input-error');
+    inputField.classList.add('input-error-animation');
+    inputField.addEventListener('animationend', function() {
+        inputField.classList.remove('input-error-animation'); // Remove the animation class at the end
+    }, {once: true});
 }
 
 function findMissingPageAnswerYes() {
@@ -500,33 +525,6 @@ function updateDatabaseWithAnswer(userQuery, currentQuestion) {
                 .catch(error => console.error(error));
 }
 
-function answerNo_index() {
-    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-
-    // Send a POST request to the server to log the current row ID
-    fetch('/log_current_row_id', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ row_id: currentQuestion.row_id }),  // Pass the current question's row_id
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Move to the next question
-        currentQuestionIndex++;
-
-        // Check if there are more questions before displaying
-        if (currentQuestionIndex < totalQuestions) {
-            displayQuestion();
-        } else {
-            //alert('All questions answered. Submitting form...');
-            handleAllQuestionsAnswered();
-        }
-    })
-    .catch(error => console.error(error));
-}
-
 function findMissingPageAnswerNo() {
     currentQuestionIndex++;
     if (currentQuestionIndex < totalQuestions) {
@@ -537,30 +535,7 @@ function findMissingPageAnswerNo() {
         handleAllQuestionsAnswered();
     }
 }
-
-function goBack_index() {
-    let foundUnanswered = false;
-    // Decrement currentQuestionIndex until an unanswered question is found or the beginning of the array is reached
-    for (let i = currentQuestionIndex - 1; i >= 0; i--) {
-        if (!preRenderedQuestions[i].answered) {
-            currentQuestionIndex = i;
-            foundUnanswered = true;
-            break;
-        }
-    }
-
-    // If an unanswered question is found, display it
-    if (foundUnanswered) {
-        displayQuestion();
-    } else {
-        // Optionally, handle the case where no previous unanswered questions are found
-        alert("No more previous unanswered questions.");
-    }
-}
-
-
-
-                
+            
 function findMissingPageGoBack() {
     // Decrement index and skip answered questions
     do {
@@ -709,19 +684,77 @@ document.getElementById('show-flagged-values-btn').addEventListener('click', fun
 });
 
 //index page
+function answerNo_index() {
+    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+
+    // Send a POST request to the server to log the current row ID
+    fetch('/log_current_row_id', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ row_id: currentQuestion.row_id }),  // Pass the current question's row_id
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Move to the next question
+        currentQuestionIndex++;
+
+        // Check if there are more questions before displaying
+        if (currentQuestionIndex < totalQuestions) {
+            displayQuestion();
+        } else {
+            //alert('All questions answered. Submitting form...');
+            handleAllQuestionsAnswered();
+        }
+    })
+    .catch(error => console.error(error));
+}
+
+//index page
+function goBack_index() {
+    let foundUnanswered = false;
+    // Decrement currentQuestionIndex until an unanswered question is found or the beginning of the array is reached
+    for (let i = currentQuestionIndex - 1; i >= 0; i--) {
+        if (!preRenderedQuestions[i].answered) {
+            currentQuestionIndex = i;
+            foundUnanswered = true;
+            break;
+        }
+    }
+
+    // If an unanswered question is found, display it
+    if (foundUnanswered) {
+        displayQuestion();
+    } else {
+        // Optionally, handle the case where no previous unanswered questions are found
+        alert("No more previous unanswered questions.");
+    }
+}
+
+//index page
 document.getElementById('index-yes-btn').addEventListener('click', function() {
+    resetDialogState(); // Reset the dialog state every time it is opened
     const dialog = document.getElementById('dialog');
     const overlay = document.getElementById('overlay');
 
     const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-    if (currentQuestion) { 
-    // Access properties directly since there's no 'data' property
-    const mainColumn = currentQuestion.mainColumn;
-    const mainValue = currentQuestion.mainValue; // This is not provided in the object logged in the console
-    const relatedColumn = currentQuestion.relatedColumn; // This is not provided either
-    const relatedValue = currentQuestion.relatedValue; // This is not provided either
+    if (currentQuestion) {
+        const mainColumn = currentQuestion.mainColumn;
+        const mainValue = currentQuestion.mainValue;
+        const relatedColumn = currentQuestion.relatedColumn;
+        const relatedValue = currentQuestion.relatedValue;
 
+        const mainColumnDatatype = currentQuestion.mainColumnDatatype; // Fetch the datatype for the main column
+        const relatedColumnDatatype = currentQuestion.relatedColumnDatatype; // Fetch the datatype for the related column
+
+        // Update the dialog with the column names and default values
         updateDialog(mainColumn, mainValue, relatedColumn, relatedValue);
+
+        // Update the tooltips with datatype information
+        document.getElementById('mainInputField').setAttribute('title', `The expected answer is of ${mainColumnDatatype} datatype`);
+        document.getElementById('relatedInputField').setAttribute('title', `The expected answer is of ${relatedColumnDatatype} datatype`);
+
         dialog.style.display = 'block';
         overlay.classList.add('active');
     } else {
@@ -733,7 +766,7 @@ document.getElementById('index-yes-btn').addEventListener('click', function() {
 let yesClicked = false;
 let noClicked = false;
 
-//index page
+//index page (dialog yes button)
 document.querySelectorAll('.modify-btn.yes-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
         yesClicked = true;
@@ -753,7 +786,7 @@ document.querySelectorAll('.modify-btn.yes-btn').forEach(function(btn) {
     });
 });
 
-//index page
+//index page (dialog no button)
 let noButtons = document.querySelectorAll('.no-btn');
 noButtons.forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -776,12 +809,17 @@ noButtons.forEach(function(btn) {
     });
 });
 
-//index page
+//index page (dialog submit button)
 document.getElementById('submitAnswer').addEventListener('click', function() {
     const mainInputField = document.getElementById('mainInputField');
     const relatedInputField = document.getElementById('relatedInputField');
+    
     const mainInputError = document.getElementById('mainInputError');
     const relatedInputError = document.getElementById('relatedInputError');
+
+    const mainColumnDatatype = preRenderedQuestions[currentQuestionIndex].mainColumnDatatype;
+    const relatedColumnDatatype = preRenderedQuestions[currentQuestionIndex].relatedColumnDatatype;
+
     const mainDefaultValue = document.getElementById('mainDefaultValue').textContent;
     const relatedDefaultValue = document.getElementById('relatedDefaultValue').textContent;
 
@@ -797,7 +835,9 @@ document.getElementById('submitAnswer').addEventListener('click', function() {
     mainInputError.style.display = 'none';
     relatedInputError.style.display = 'none';
 
-    // Checkpoint 5: One field is visible and empty, and the other wasn't opened
+    let validationPassed = true;
+
+        // Checkpoint 5: One field is visible and empty, and the other wasn't opened
     if ((mainFieldVisible && !mainFieldValue && !relatedFieldVisible) || (relatedFieldVisible && !relatedFieldValue && !mainFieldVisible)) {
         if (mainFieldVisible && !mainFieldValue) {
             mainInputError.style.display = 'block';
@@ -808,7 +848,7 @@ document.getElementById('submitAnswer').addEventListener('click', function() {
         return; // Prevent form submission
     }
 
-    // Check if both fields are visible and have a value
+    // Check if both fields are visible and have a value ; check point
     if (mainFieldVisible && !mainFieldValue && relatedFieldVisible && !relatedFieldValue) {
         // Both fields are visible but empty, show error message
         mainInputError.style.display = 'block';
@@ -816,6 +856,27 @@ document.getElementById('submitAnswer').addEventListener('click', function() {
         return; // Prevent form submission
     }
 
+    // Check the main input field
+    if (mainInputField.style.display !== 'none' && !validateUserInput(mainInputField.value.trim(), preRenderedQuestions[currentQuestionIndex].mainColumnDatatype)) {
+        showError(mainInputField, 'Value must be a ' + preRenderedQuestions[currentQuestionIndex].mainColumnDatatype + '.');
+        mainInputField.value = ''; // Clear the input field
+        validationPassed = false; // Set validation as failed
+    } else {
+        hideError(mainInputField);
+    }
+
+    // Check the related input field
+    if (relatedInputField.style.display !== 'none' && !validateUserInput(relatedInputField.value.trim(), preRenderedQuestions[currentQuestionIndex].relatedColumnDatatype)) {
+        showError(relatedInputField, 'Value must be a ' + preRenderedQuestions[currentQuestionIndex].relatedColumnDatatype + '.');
+        relatedInputField.value = ''; // Clear the input field
+        validationPassed = false; // Set validation as failed
+    } else {
+        hideError(relatedInputField);
+    }
+
+    // If validation fails, stop the function execution
+    if (!validationPassed) return;
+    
     // Decide which values to submit based on visibility and user interaction
     const mainValueToSubmit = mainFieldVisible && mainFieldValue ? mainFieldValue : mainDefaultValue;
     const relatedValueToSubmit = relatedFieldVisible && relatedFieldValue ? relatedFieldValue : relatedDefaultValue;
@@ -837,23 +898,48 @@ document.getElementById('submitAnswer').addEventListener('click', function() {
     submitDialogData(dataToSend);
 });
 
+//index page dialog box reset
+function resetDialogState() {
+    // Clear input fields
+    const mainInputField = document.getElementById('mainInputField');
+    const relatedInputField = document.getElementById('relatedInputField');
+    mainInputField.value = '';
+    relatedInputField.value = '';
+    
+    // Hide input fields
+    mainInputField.style.display = 'none';
+    relatedInputField.style.display = 'none';
 
+    // Reset error messages and hide them
+    const mainInputError = document.getElementById('mainInputError');
+    const relatedInputError = document.getElementById('relatedInputError');
+    mainInputError.textContent = 'Cannot be empty';
+    relatedInputError.textContent = 'Cannot be empty';
+    mainInputError.style.display = 'none';
+    relatedInputError.style.display = 'none';
+    
+    // Remove any error classes applied to input fields
+    mainInputField.classList.remove('error-class'); // Replace 'error-class' with the actual class name used for errors
+    relatedInputField.classList.remove('error-class');
+}
 
+// Function to show error message and apply shake animation
 function showError(inputField, message) {
-    let errorContainer = inputField.nextElementSibling;
-    inputField.classList.add('input-error-highlight', 'input-shake');
+    let errorContainer = inputField.nextElementSibling; // Assumes the error container is the next sibling element
     errorContainer.textContent = message;
     errorContainer.style.display = 'block';
+    inputField.classList.add('input-error-highlight', 'input-shake');
+    setTimeout(() => {
+        inputField.classList.remove('input-shake');
+    }, 1000); // remove the class after the animation ends
 }
 
+// Function to hide error message
 function hideError(inputField) {
-    let errorContainer = inputField.nextElementSibling;
-    inputField.classList.remove('input-error-highlight', 'input-shake');
+    let errorContainer = inputField.nextElementSibling; // Assumes the error container is the next sibling element
     errorContainer.style.display = 'none';
+    inputField.classList.remove('input-error-highlight');
 }
-
-
-
 //index page
 function displayNextQuestionForIndexPage() {
     let foundUnanswered = false;
@@ -876,7 +962,7 @@ function displayNextQuestionForIndexPage() {
         handleAllQuestionsAnswered();
     }
 }
-//index page
+
 //index page
 function submitDialogData(data) {
     // Fetch the column names and default values from the dialog display
@@ -951,7 +1037,6 @@ const relatedInputField = document.getElementById('relatedInputField');
 mainInputField.addEventListener('input', clearErrorState);
 relatedInputField.addEventListener('input', clearErrorState);
 
-
 function updateCurrentQuestion(updatedValues) {
     // Find the question in preRenderedQuestions by rowId and update its values
     const questionIndex = preRenderedQuestions.findIndex(question => question.row_id == updatedValues.rowId);
@@ -976,7 +1061,6 @@ function updateDisplayWithNewValues(updatedValues) {
         relatedValueDisplay.textContent = updatedValues.relatedValue;
     }
 }
-
 
 function updateDialog(mainColumn, mainValue, relatedColumn, relatedValue) {
     // Update the content of the first row with mainColumn and mainValue
@@ -1020,14 +1104,11 @@ function handleNoClick(event) {
     }
 }
 
-//index page
-
-// Get input fields and error message containers
-
+//index page ( Get input fields and error message containers)
     const mainInputError = document.getElementById('mainInputError');
     const relatedInputError = document.getElementById('relatedInputError');
 
-    // Reset error state when user starts typing in the input fields
+// Reset error state when user starts typing in the input fields
     function resetErrorState(inputField, errorContainer) {
         inputField.classList.remove('input-error-highlight', 'input-shake');
         errorContainer.style.display = 'none';
@@ -1041,24 +1122,20 @@ function handleNoClick(event) {
         resetErrorState(relatedInputField, relatedInputError);
     });
 
-    // Close dialog function updated to reset error states
+// for index (Close dialog function updated to reset error states)
 document.getElementById('closeDialog').addEventListener('click', function() {
-        const dialog = document.getElementById('dialog');
-        const overlay = document.getElementById('overlay');
-        yesClicked = false;
-        noClicked = false;
-        
-        // Hide the dialog and overlay
-        dialog.style.display = 'none';
-        overlay.classList.remove('active');
+    const dialog = document.getElementById('dialog');
+    const overlay = document.getElementById('overlay');
+    yesClicked = false;
+    noClicked = false;
+    
+    // Hide the dialog and overlay
+    dialog.style.display = 'none';
+    overlay.classList.remove('active');
 
-        // Reset the input fields, error messages, and hide them
-        [mainInputField, relatedInputField].forEach(field => {
-            field.value = '';
-            field.style.display = 'none';
-            resetErrorState(field, field.nextElementSibling); // Assuming the next sibling is the error container
-        });
-    });
+    // Call resetDialogState to reset the dialog state
+    resetDialogState();
+});
 
 
 //index page

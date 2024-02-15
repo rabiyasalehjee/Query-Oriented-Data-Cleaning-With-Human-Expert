@@ -20,6 +20,8 @@ from flask_cors import CORS
 from relationships import define_relationships
 from sqlalchemy import inspect
 import logging
+from dateutil.parser import parse
+
 
 # Setup basic logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -161,15 +163,20 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
             main_value = row[main_column]
             related_value = row[related_column]
             question_name = f'q_{index}_ml_correct_{main_column}_{related_column}'
-
+            main_column_datatype = determine_column_datatype(dataframe[main_column])  # Determine datatype for main_column
+            related_column_datatype = determine_column_datatype(dataframe[related_column])  # Determine datatype for related_column
+            
             # Add the row ID to the question data
             question_data = {
                 'row_id': row_id,  
                 'mainColumn': main_column,
                 'mainValue': main_value,
                 'relatedColumn': related_column,
-                'relatedValue': related_value
+                'relatedValue': related_value,
+                'mainColumnDatatype': main_column_datatype,
+                'relatedColumnDatatype': related_column_datatype,
             }
+            #print(f"Question Data (Before Adding to Questions): {question_data}")
 
             main_value = row[main_column]
             related_value = row[related_column]
@@ -182,6 +189,7 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
 
             else:
                 question_text = f"The {main_column}: {main_value} has {related_value} as {related_column}. Do you want to modify the data?"
+                #question_text = f"The {main_column} | (Datatype: {main_column_datatype}): {main_value} has {related_value} as {related_column} | (Datatype: {related_column_datatype}). Do you want to modify the data?"
             question_count += 1
             question = {
                 'type': 'confirm',
@@ -191,6 +199,7 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
                 'data': question_data,
             }
             questions.append(question)
+            
 
         # Add the row to processed rows to avoid duplicate questions
         processed_rows.add(index)
@@ -260,7 +269,9 @@ def index():
             "mainValue": question['data']['mainValue'],
             "relatedColumn": question['data']['relatedColumn'],
             "relatedValue": question['data']['relatedValue'],
-            # ... include any other necessary data
+            "mainColumnDatatype": question['data']['mainColumnDatatype'],  # Include mainColumnDatatype
+            "relatedColumnDatatype": question['data']['relatedColumnDatatype'],  # Include relatedColumnDatatype
+            
         } for question in questions_ml
     ], ensure_ascii=False)
 
@@ -322,7 +333,6 @@ def update_row_in_database(row_id, main_value, related_value):
         db.session.commit()
     else:
         print(f"No record found with ID: {row_id}")
-
 
 @app.route('/find_missing_values')
 def find_missing_values():
@@ -407,44 +417,42 @@ def generate_missing_data_questions(dataframe, relationships_config, current_row
                 displayed_row_id_missing = row_id
     return missing_questions
 
+def is_date(string):
+    try:
+        parse(string)
+        return True
+    except ValueError:
+        return False
+
 def determine_column_datatype(column):
     int_count = 0
     float_count = 0
     date_count = 0
     total_count = len(column)
 
-    # Define a simple date format for checking; you can add more formats as needed
-    date_format = "%Y-%m-%d"
-
-    for value in column.dropna():  # Exclude NaN values from the analysis
-        # Check for integer
+    for value in column.dropna():  # Exclude NaN values
         if str(value).isdigit():
             int_count += 1
-            continue  # If it's an integer, it can't be a float or date, so continue to the next value
+            continue
 
-        # Check for float
         try:
             float(value)
             float_count += 1
         except ValueError:
-            pass  # Not a float
+            pass
 
-        # Check for date
-        try:
-            datetime.strptime(str(value), date_format)
+        if is_date(str(value)):
             date_count += 1
-        except ValueError:
-            pass  # Not a date
 
-    # Determine the datatype based on counts
-    if int_count / total_count > 0.8:  # Arbitrary threshold, adjust based on your needs
+    if int_count / total_count > 0.8:
         return 'integer'
     elif float_count / total_count > 0.8:
         return 'float'
     elif date_count / total_count > 0.8:
         return 'date'
     else:
-        return 'text'  # Default to text if no clear datatype is determined
+        return 'text'
+
 
 def generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes):
     questions = []

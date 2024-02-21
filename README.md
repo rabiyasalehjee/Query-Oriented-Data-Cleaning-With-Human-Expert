@@ -26,7 +26,7 @@ This Flask web application is designed for cleaning and correcting data. It uses
 
 1. Clone the repository or download the .zip file.
 2. Run the application: python app.py
-3. Open your browser and go to http://localhost:5000.
+3. Open your browser and go to http://localhost:5001.
 
 Usage
 Answer the questions presented on the web interface to review and correct data.
@@ -42,4 +42,4 @@ File Structure
 - 'database_utils.py: Flask-based utility for dynamic model creation, data loading, and rule application in a MySQL database.
 
 ### Demo
-![Animated GIF](https://github.com/rabiyasalehjee/Query-Oriented-Data-Cleaning-With-Human-Expert/blob/main/Short%20Demo.gif)
+![Animated GIF](https://github.com/rabiyasalehjee/Query-Oriented-Data-Cleaning-With-Human-Expert/blob/main/Demo.gif)

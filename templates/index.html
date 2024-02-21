@@ -13,17 +13,18 @@
         <h1>Query Oriented Data Cleaning</h1>
         <div id="question-container"></div>
         <p id="question-count"></p>
-        <button id="index-yes-btn" class="action-btn">Yes</button>
-        <button id="index-no-btn" class="action-btn">No</button>
+        <button id="index-yes-btn" class="action-btn">Provide Answer</button>
+        <button id="index-no-btn" class="action-btn">Next </button>
         <button id="index-back-btn" class="action-btn">Back</button>
-        <button id="index-find-missing-btn" class="action-btn" onclick="window.location.href='/find_missing_values'">Find Missing Data Values</button>
+        <button id="index-find-missing-btn" class="action-btn" onclick="window.location.href='/find_missing_values'">Missing Values Question</button>
         <button id="find-missing-yes-btn" class="action-btn">Provide Answer</button>
         <button id="find-missing-no-btn" class="action-btn">Next Question</button>
-        <button id="find-missing-back-btn" class="action-btn">Back</button>
-        <button id="show-flagged-values-btn" class="action-btn">Show Flagged Values Question</button>
+        <button id="find-missing-back-btn" class="action-btn">Previous Question</button>
+        <!-- Flagged Values-->
+        <button id="show-flagged-values-btn" class="action-btn">Flagged Values Question</button>
         <button id="show-flagged-values-no-btn" class="action-btn">Next Question</button>
-        <button id="show-flagged-values-back-btn" class="action-btn">Back</button>
-        <button id="submit-answer-btn">Submit Answer</button>
+        <button id="show-flagged-values-back-btn" class="action-btn">Previous Question</button>
+        <button id="submit-answer-btn">Provide Answer</button>
     </div>
     <div id="queryModal" class="modal">
         <div class="modal-content">
@@ -62,7 +63,23 @@
 <div class="row" id="mainRow"><!-- Content for the main column --></div>
 <div class="row" id="relatedRow"><!-- Content for the related column --></div>
 
-    <script>
+<!-- From here is the dialog box for flagged values "Provide Answer" button-->
+<div id="flaggedDialog" class="flagged-dialog" style="display: none;">
+    <button id="closeFlaggedDialog" class="close-flagged-dialog">X</button>
+    <div class="flagged-row">
+        <span class="flagged-column-name" id="flaggedColumnName">Flagged Column Name</span>
+        <span class="flagged-default-value" id="flaggedDefaultValue">Flagged Default Value</span>
+        <button class="flagged-modify-btn flagged-yes-btn">Yes</button>
+        <button class="flagged-modify-btn flagged-no-btn">No</button>
+        <input type="text" id="flaggedInputField" class="flagged-input-field" data-type="{{ flaggedColumnDatatype }}" placeholder="Please Enter the Correct Value for Flagged Column" title="Enter the new value for the flagged column here" style="display: none;">
+        <div id="flaggedInputError" class="flagged-input-error-message">Cannot be empty</div>
+    </div>
+    <button id="submitFlaggedAnswer">Submit Flagged Answer</button>
+</div>
+<div id="flaggedOverlay" class="flagged-overlay"></div>
+<div class="flagged-row" id="flaggedmainRow"><!-- Content for the main column --></div>
+
+<script>
         document.addEventListener('DOMContentLoaded', function () {
         
         let displayedRowIdMissing; // Variable to store the displayed row ID for missing data questions
@@ -73,6 +90,15 @@
         var generatedQueries = [];
         var currentUrl = window.location.href; // Get the current URL
         let totalQuestions = preRenderedQuestions.length;
+
+        // For Index Page **Flag variables to keep track of whether 'Yes' or 'No' has been clicked**
+        let yesClicked = false;
+        let noClicked = false;
+
+        // For Flagged Values **Flag variables to keep track of whether 'Yes' or 'No' has been clicked**
+        let flaggedyesClicked = false;
+        let flaggednoClicked = false;
+
         const inputField = document.getElementById('user-query-input');
         const submitQueryBtn = document.getElementById('submit-query-btn');
         const closeModalBtn = document.getElementById('closeModal');
@@ -136,7 +162,7 @@
             flaggedValuesbackBtn.style.display = 'none';
         }
 
-        // Function to update the cursor style of the submit button
+// Function to update the cursor style of the submit button
 function updateSubmitButtonCursor() {
         if (inputField.value.trim() === '') {
             submitQueryBtn.classList.add('cursor-not-allowed');
@@ -147,9 +173,9 @@ function updateSubmitButtonCursor() {
         }
     }
 
-    // Initial check in case there's already text in the input field when the page loads
+// Initial check in case there's already text in the input field when the page loads
 updateSubmitButtonCursor();
-    // Event listener to check input field's value on keyup
+// Event listener to check input field's value on keyup
 inputField.addEventListener('keyup', function () {
         updateSubmitButtonCursor();
     });
@@ -159,45 +185,6 @@ inputField.addEventListener('input', function () {
     const errorMessageContainer = document.getElementById('error-message-container');
     errorMessageContainer.style.display = 'none';
     inputField.classList.remove('error');
-});
-//for missing page
-document.getElementById('submit-query-btn').addEventListener('click', function(event) {
-    event.preventDefault();
-    
-    // Reintegrate the error message container handling
-    const errorMessageContainer = document.getElementById('error-message-container');
-    errorMessageContainer.style.display = 'none'; // Hide any previous error messages
-    userQueryInput.classList.remove('error'); 
-
-    const userQuery = userQueryInput.value.trim();
-    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-    const expectedDatatype = currentQuestion.data.datatype;
-
-    if (validateUserInput(userQuery, expectedDatatype)) {
-        const dataToSend = {
-            rowId: currentQuestion.data.row_id,
-            mainColumn: currentQuestion.data?.mainColumn,
-            relatedColumn: currentQuestion.data?.relatedColumn,
-            answer: userQuery
-        };
-
-        sendDataToServer(dataToSend)
-        .then(() => {
-            closeModal(); // Close the modal after successful submission
-            displayNextUnansweredQuestion(); // Adjusted to use the custom function for displaying the next question
-        })
-        .catch(error => {
-            // Display error message in UI
-            errorMessageContainer.innerText = error.message;
-            errorMessageContainer.style.display = 'block';
-            userQueryInput.classList.add('error');
-            userQueryInput.value = ''; // Clear the input field
-            userQueryInput.focus(); // Focus on the input field for the user to correct the input
-        });
-    } else {
-        // Display error message for invalid input
-        displayErrorMessage(`Invalid input. Please enter a valid ${expectedDatatype}.`);
-    }
 });
 
 function displayNextUnansweredQuestion() {
@@ -258,24 +245,48 @@ function sendDataToServer(dataToSend) {
 
 function closeModal() {
     const queryModal = document.getElementById('queryModal');
+    
+    //index page
     const dialogModal = document.getElementById('dialog');
     const overlay = document.getElementById('overlay');
+
+    //flagged values page
+    const flaggeddialogModal = document.getElementById('flaggedDialog');
+    const flaggedoverlay = document.getElementById('flaggedOverlay');
 
     if (queryModal) {
         queryModal.style.display = 'none';
     }
 
+    //index page
     if (dialogModal) {
         dialogModal.style.display = 'none';
     }
-
+     //index page
     if (overlay) {
         overlay.classList.remove('active');
     }
+
+     //index page
     document.getElementById('mainInputField').value = '';
     document.getElementById('mainInputField').style.display = 'none';
     document.getElementById('relatedInputField').value = '';
     document.getElementById('relatedInputField').style.display = 'none';
+
+    //flagged value page
+    if (flaggeddialogModal) {
+        flaggeddialogModal.style.display = 'none';
+    }
+
+    //flagged value page
+    if (flaggedoverlay) {
+        flaggedoverlay.classList.remove('active');
+    }
+
+     //flagged value page
+    document.getElementById('flaggedInputField').value = '';
+    document.getElementById('flaggedInputField').style.display = 'none';
+
     }
 
 function showQuestionModal() {
@@ -286,7 +297,7 @@ function showQuestionModal() {
 
 function displayQuestion(updatedQuestionIndex = currentQuestionIndex) {
     // If updatedQuestionIndex is provided, use it; otherwise, use currentQuestionIndex
-    const questionIndex = updatedQuestionIndex !== undefined ? updatedQuestionIndex : currentQuestionIndex;
+    let questionIndex = updatedQuestionIndex !== undefined ? updatedQuestionIndex : currentQuestionIndex;
   
     // Skip answered questions
     while (questionIndex < totalQuestions && preRenderedQuestions[questionIndex].answered) {
@@ -367,6 +378,8 @@ function displayQuestion(updatedQuestionIndex = currentQuestionIndex) {
     
         // Check if this is the last question
     if (currentQuestionIndex === totalQuestions - 1) {
+            document.getElementById('find-missing-no-btn').textContent = 'Finish';
+            document.getElementById('index-no-btn').textContent = 'Finish';
             showLastQuestionNotification(); // Call a function to display a notification
         }
     
@@ -454,6 +467,7 @@ function validateUserInput(input, datatype) {
         return false;
     }
 }
+
 //for index page dialog box input field Function to validate input and apply animation if input is incorrect
 function validateAndAnimateInput(inputField, errorContainer, datatype) {
     const isValid = validateUserInput(inputField.value.trim(), datatype);
@@ -470,7 +484,6 @@ function validateAndAnimateInput(inputField, errorContainer, datatype) {
     return true;
 }
 
-
 //for index page dialog box input field
 function applyVibrationAnimation(inputField) {
     inputField.classList.add('input-error');
@@ -479,134 +492,7 @@ function applyVibrationAnimation(inputField) {
         inputField.classList.remove('input-error-animation'); // Remove the animation class at the end
     }, {once: true});
 }
-
-function findMissingPageAnswerYes() {
-    modal.style.display = 'block';
-    
-}
-
-// Function to update the database with the provided answer
-function updateDatabaseWithAnswer(userQuery, currentQuestion) {
-                const [_, rowId, mainColumn, relatedColumn] = currentQuestion.name.split('_');
-
-                // Dynamically extract the relatedColumn from the question text
-                const questionText = currentQuestion.message;
-                const relatedColumnMatch = questionText.match(/The (.*?):/);
-                const dynamicRelatedColumn = relatedColumnMatch ? relatedColumnMatch[1].trim() : null;
-
-                const data = {
-                    rowId: rowId,
-                    mainColumn: mainColumn,
-                    relatedColumn: dynamicRelatedColumn, // Use the dynamically extracted relatedColumn
-                    answer: userQuery,
-                };
-
-                // Send a POST request to the server to process the answer and update the database
-                fetch('/process_answers', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data);
-
-                    // Increment the currentQuestionIndex and display the next question
-                    currentQuestionIndex++;
-                    if (currentQuestionIndex < totalQuestions) {
-                        displayQuestion();
-                    } else {
-                        //alert('All questions answered. Submitting form...');
-                        handleAllQuestionsAnswered();
-                    }
-                })
-                .catch(error => console.error(error));
-}
-
-function findMissingPageAnswerNo() {
-    currentQuestionIndex++;
-    if (currentQuestionIndex < totalQuestions) {
-        displayQuestion();
-        console.log(`Missing Page Answer No : ${displayedRowIdMissing}`);
-    } else {
-        //alert('All questions answered. Submitting form...');
-        handleAllQuestionsAnswered();
-    }
-}
-            
-function findMissingPageGoBack() {
-    // Decrement index and skip answered questions
-    do {
-        currentQuestionIndex--;
-    } while (currentQuestionIndex >= 0 && preRenderedQuestions[currentQuestionIndex].answered);
-
-    if (currentQuestionIndex >= 0) {
-        displayQuestion();
-    } else {
-        alert('No more previous questions.');
-        currentQuestionIndex = 0; // Reset to the first question if needed
-    }
-}
-                
-function findMissingValues() {
-                const filteredMissingQuestions = preRenderedQuestions.filter(question => {
-                    const mainColumn = question.message.split("'")[1];
-                    const mainColumnValue = row[mainColumn];
-                    return mainColumnValue === '';
-                });
-
-                console.log('Filtered Missing Questions:', filteredMissingQuestions);
-
-                totalQuestions = filteredMissingQuestions.length;
-
-                if (totalQuestions > 0) {
-                    currentQuestionIndex = 0;
-                    preRenderedQuestions = filteredMissingQuestions;
-                    findMissingBtn.disabled = true;
-                    displayQuestion();
-                } else {
-                    questionContainer.innerHTML = '<p>No missing data questions found.</p>';
-                    questionCount.textContent = '0 of 0';
-                }
-
-                updateGeneratedQueries();
-            }
-            
-function showFlaggedValuesQuestions() {
-    console.log('Show Flagged Values button clicked');
-    // Make an AJAX request to fetch flagged values questions
-    fetch('/show_flagged_values_questions', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    .then(response => response.json())
-    .then(data => {
-        const flaggedValuesQuestions = data.questions;
-        // Update the question container with flagged values questions
-        questionContainer.innerHTML = ''; // Clear existing content
-        // Iterate through flagged values questions and append to the question container
-        flaggedValuesQuestions.forEach(question => {
-            const questionElement = document.createElement('p');
-            questionElement.textContent = question;
-            questionContainer.appendChild(questionElement);
-        });
-        // Hide other buttons on the flagged values page
-        yesBtn.style.display = 'none';
-        noBtn.style.display = 'none';
-        backBtn.style.display = 'none';
-        findMissingBtn.style.display = 'none';
-        findMissingYesBtn.style.display = 'none';
-        findMissingNoBtn.style.display = 'none';
-        findMissingBackBtn.style.display = 'none';
-        submitAnswerBtn.style.display = 'inline-block';
-    })
-    .catch(error => console.error(error));
-}
-
+           
 // Function to handle button clicks on the index page
 function handleIndexPageButtonClick(buttonId) {
                 if (buttonId === 'yes') {
@@ -617,71 +503,6 @@ function handleIndexPageButtonClick(buttonId) {
                     goBack_index();
                 }
             }
-
-function handleFindMissingPageButtonClick(buttonId) {
-            // Function for handling button clicks on the find_missing_values page
-            if (buttonId === 'yes') {
-                findMissingPageAnswerYes();
-            } else if (buttonId === 'no') {
-                findMissingPageAnswerNo();
-            } else if (buttonId === 'back') {
-                findMissingPageGoBack();
-            }
-        }
-            
-// Function to handle button click on the flagged values page
-function handleFlaggedValuesButtonClick(buttonId) {
-    if (buttonId === 'submit-answer') {
-        console.log('Submitting flagged values answers');
-    }
-}
-
-//Event listener for the 'Submit Answer' button on flagged values page
-document.getElementById('submit-answer-btn').addEventListener('click', function () {
-    console.log('Submit button clicked');
-    handleFlaggedValuesButtonClick('submit-answer');
-});
-
-// Event listener for the 'Show Flagged Values' button
-document.getElementById('show-flagged-values-btn').addEventListener('click', function() {
-    fetch('/show_flagged_values_questions', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Update to use the correct structure for the questions
-        const flaggedValuesQuestions = data.questions.map(question => ({
-            question: question.question, // Assuming 'question' contains the question text
-            rule_violation: question.rule_violation, // Rule violation text
-            name: `flagged_value_question_${question.row_id}`, // Unique identifier for each question
-            row_id: question.row_id // Row ID if available
-        }));
-
-        // Update preRenderedQuestions with the new data
-        preRenderedQuestions = flaggedValuesQuestions;
-        // Reset the current question index and display the first question
-        currentQuestionIndex = 0;
-        displayQuestion();
-    })
-    .catch(error => console.error(error));
-
-    // Hide other buttons and show necessary ones for flagged values questions
-    yesBtn.style.display = 'none';
-    noBtn.style.display = 'none';
-    backBtn.style.display = 'none';
-    findMissingBtn.style.display = 'none';
-    findMissingYesBtn.style.display = 'none';
-    findMissingNoBtn.style.display = 'none';
-    findMissingBackBtn.style.display = 'none';
-    flaggedValue.style.display = 'none';
-
-    flaggedValuesnoBtn.style.display = 'inline-block';
-    flaggedValuesbackBtn.style.display = 'inline-block';
-    submitAnswerBtn.style.display = 'inline-block';
-});
 
 //index page
 function answerNo_index() {
@@ -761,10 +582,6 @@ document.getElementById('index-yes-btn').addEventListener('click', function() {
         console.error('Current question or current question data is undefined:', currentQuestion);
     }
 });
-
-// Flag variables to keep track of whether 'Yes' or 'No' has been clicked
-let yesClicked = false;
-let noClicked = false;
 
 //index page (dialog yes button)
 document.querySelectorAll('.modify-btn.yes-btn').forEach(function(btn) {
@@ -940,6 +757,7 @@ function hideError(inputField) {
     errorContainer.style.display = 'none';
     inputField.classList.remove('input-error-highlight');
 }
+
 //index page
 function displayNextQuestionForIndexPage() {
     let foundUnanswered = false;
@@ -1137,7 +955,6 @@ document.getElementById('closeDialog').addEventListener('click', function() {
     resetDialogState();
 });
 
-
 //index page
 document.getElementById('index-no-btn').addEventListener('click', function () {
                 handleIndexPageButtonClick('no');
@@ -1148,37 +965,607 @@ document.getElementById('index-back-btn').addEventListener('click', function () 
                 handleIndexPageButtonClick('back');
             });
 
-document.getElementById('show-flagged-values-no-btn').addEventListener('click', function () {
-                currentQuestionIndex++;
-                if (currentQuestionIndex < preRenderedQuestions.length) {
+// Function to update the database with the provided answer
+function updateDatabaseWithAnswer(userQuery, currentQuestion) {
+                const [_, rowId, mainColumn, relatedColumn] = currentQuestion.name.split('_');
+
+                // Dynamically extract the relatedColumn from the question text
+                const questionText = currentQuestion.message;
+                const relatedColumnMatch = questionText.match(/The (.*?):/);
+                const dynamicRelatedColumn = relatedColumnMatch ? relatedColumnMatch[1].trim() : null;
+
+                const data = {
+                    rowId: rowId,
+                    mainColumn: mainColumn,
+                    relatedColumn: dynamicRelatedColumn, // Use the dynamically extracted relatedColumn
+                    answer: userQuery,
+                };
+
+                // Send a POST request to the server to process the answer and update the database
+                fetch('/process_answers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+
+                    // Increment the currentQuestionIndex and display the next question
+                    currentQuestionIndex++;
+                    if (currentQuestionIndex < totalQuestions) {
+                        displayQuestion();
+                    } else {
+                        //alert('All questions answered. Submitting form...');
+                        handleAllQuestionsAnswered();
+                    }
+                })
+                .catch(error => console.error(error));
+}
+
+//find_missing_values
+document.getElementById('submit-query-btn').addEventListener('click', function(event) {
+    event.preventDefault();
+    
+    // Reintegrate the error message container handling
+    const errorMessageContainer = document.getElementById('error-message-container');
+    errorMessageContainer.style.display = 'none'; // Hide any previous error messages
+    userQueryInput.classList.remove('error'); 
+
+    const userQuery = userQueryInput.value.trim();
+    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+    const expectedDatatype = currentQuestion.data.datatype;
+
+    if (validateUserInput(userQuery, expectedDatatype)) {
+        const dataToSend = {
+            rowId: currentQuestion.data.row_id,
+            mainColumn: currentQuestion.data?.mainColumn,
+            relatedColumn: currentQuestion.data?.relatedColumn,
+            answer: userQuery
+        };
+
+        sendDataToServer(dataToSend)
+        .then(() => {
+            closeModal(); // Close the modal after successful submission
+            displayNextUnansweredQuestion(); // Adjusted to use the custom function for displaying the next question
+        })
+        .catch(error => {
+            // Display error message in UI
+            errorMessageContainer.innerText = error.message;
+            errorMessageContainer.style.display = 'block';
+            userQueryInput.classList.add('error');
+            userQueryInput.value = ''; // Clear the input field
+            userQueryInput.focus(); // Focus on the input field for the user to correct the input
+        });
+    } else {
+        // Display error message for invalid input
+        displayErrorMessage(`Invalid input. Please enter a valid ${expectedDatatype}.`);
+    }
+});
+
+//find_missing_values
+function findMissingPageAnswerNo() {
+    currentQuestionIndex++;
+    if (currentQuestionIndex < totalQuestions) {
+        displayQuestion();
+        console.log(`Missing Page Answer No : ${displayedRowIdMissing}`);
+    } else {
+        //alert('All questions answered. Submitting form...');
+        handleAllQuestionsAnswered();
+    }
+}
+
+//find_missing_values        
+function findMissingPageGoBack() {
+    // Decrement index and skip answered questions
+    do {
+        currentQuestionIndex--;
+    } while (currentQuestionIndex >= 0 && preRenderedQuestions[currentQuestionIndex].answered);
+
+    if (currentQuestionIndex >= 0) {
+        displayQuestion();
+    } else {
+        alert('No more previous questions.');
+        currentQuestionIndex = 0; // Reset to the first question if needed
+    }
+}
+
+//find_missing_values                
+function findMissingValues() {
+                const filteredMissingQuestions = preRenderedQuestions.filter(question => {
+                    const mainColumn = question.message.split("'")[1];
+                    const mainColumnValue = row[mainColumn];
+                    return mainColumnValue === '';
+                });
+
+                console.log('Filtered Missing Questions:', filteredMissingQuestions);
+
+                totalQuestions = filteredMissingQuestions.length;
+
+                if (totalQuestions > 0) {
+                    currentQuestionIndex = 0;
+                    preRenderedQuestions = filteredMissingQuestions;
+                    findMissingBtn.disabled = true;
                     displayQuestion();
                 } else {
-                    alert('All questions answered.');
+                    questionContainer.innerHTML = '<p>No missing data questions found.</p>';
+                    questionCount.textContent = '0 of 0';
                 }
-            });
-            
-document.getElementById('show-flagged-values-back-btn').addEventListener('click', function () {
-                currentQuestionIndex--;
-                if (currentQuestionIndex >= 0) {
-                    displayQuestion();
-                } else {
-                    alert('No previous questions.');
-                    currentQuestionIndex = 0; // Reset to the first question
-                }
-            });
+
+                updateGeneratedQueries();
+            }
+
+// Function to handle button clicks on the missing question page          
+function handleFindMissingPageButtonClick(buttonId) {
+            // Function for handling button clicks on the find_missing_values page
+            if (buttonId === 'yes') {
+                findMissingPageAnswerYes();
+            } else if (buttonId === 'no') {
+                findMissingPageAnswerNo();
+            } else if (buttonId === 'back') {
+                findMissingPageGoBack();
+            }
+        }
+
+//find_missing_values
+function findMissingPageAnswerYes() {
+    modal.style.display = 'block';
+    
+}
 
 // Event listeners for find_missing_values page buttons
 findMissingYesBtn.addEventListener('click', function () {
                 handleFindMissingPageButtonClick('yes');
             });
 
+// Event listeners for find_missing_values page buttons
 findMissingNoBtn.addEventListener('click', function () {
                 handleFindMissingPageButtonClick('no');
             });
 
+// Event listeners for find_missing_values page buttons
 findMissingBackBtn.addEventListener('click', function () {
                 handleFindMissingPageButtonClick('back');
             });
+//***
+// Function to handle button click on the flagged values page
+function handleFlaggedValuesButtonClick(buttonId) {
+    if (buttonId === 'submit-answer') {
+        console.log('Submitting flagged values answers');
+    }
+}
+
+//flagged page dialog box reset
+function resetflaggedDialogState() {
+    // Clear input fields
+    const flaggedInputField = document.getElementById('flaggedInputField');
+    
+    flaggedInputField.value = '';
+    // Hide input fields
+    flaggedInputField.style.display = 'none';
+    
+    // Reset error messages and hide them
+    const flaggedInputError = document.getElementById('flaggedInputError');
+    
+    flaggedInputError.textContent = 'Cannot be empty';
+    
+    flaggedInputError.style.display = 'none';
+   
+    // Remove any error classes applied to input fields
+    flaggedInputField.classList.remove('error-class'); // Replace 'error-class' with the actual class name used for errors
+}
+
+// Event listener for the 'Provide Answer' button on flagged values page
+document.getElementById('submit-answer-btn').addEventListener('click', function () {
+    // Only reset the dialog state and show the dialog when this button is clicked
+    resetflaggedDialogState(); // Reset the dialog state every time it is opened
+
+    // Ensure the dialog and overlay are only shown when this button is clicked
+    const flaggedDialog = document.getElementById('flaggedDialog');
+    const flaggedOverlay = document.getElementById('flaggedOverlay');
+    
+
+    // If you have any logic to set up the dialog content 343 3451420based on the current question, include it here
+    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+    if (currentQuestion) {
+        const flaggedID = currentQuestion.row_id;
+        const flaggedColumn = currentQuestion.col_name;
+        const flaggedValue = currentQuestion.flagged_value;
+        const datatype = currentQuestion.datatype;
+        console.log('THE FLAGGED COLUMN ID: ', flaggedID)
+        console.log('THE FLAGGED COLUMN DATATYPE: ', datatype)
+
+        // Update the dialog with the column names and default values
+        updateDialogBoxForFlaggedValue(flaggedColumn, flaggedValue);
+        
+
+        // Hover Update the tooltips with datatype information
+        document.getElementById('flaggedInputField').setAttribute('title', `The expected answer is of ${datatype} datatype`);
+        
+        flaggedDialog.style.display = 'block';
+        flaggedOverlay.classList.add('active');
+    } else {
+        console.error('Current question or current question data is undefined:', currentQuestion);
+    }
+});
+
+// Handle submission of flagged values answers
+document.getElementById('submitFlaggedAnswer').addEventListener('click', function() {
+    const flaggedInputField = document.getElementById('flaggedInputField');
+    
+    const flaggedInputError = document.getElementById('flaggedInputError');
+
+    const datatype = preRenderedQuestions[currentQuestionIndex].datatype;
+   
+    const flaggedDefaultValue = document.getElementById('flaggedDefaultValue').textContent;
+   
+    // Get the trimmed values of the input fields
+    const flaggedFieldValue = flaggedInputField.value.trim();
+    
+    // Determine visibility of the input fields
+    const flaggedFieldVisible = flaggedInputField.style.display !== 'none';
+    
+    // Reset error states
+    flaggedInputError.style.display = 'none';
+   
+    let validationPassed = true;
+
+    // Check if both fields are visible and have a value ; check point
+    if (flaggedFieldVisible && !flaggedFieldValue) {
+        // Both fields are visible but empty, show error message
+        flaggedInputError.style.display = 'block';
+        return; // Prevent form submission
+    }
+
+    // Check the main input field
+    if (flaggedInputField.style.display !== 'none' && !validateUserInput(flaggedInputField.value.trim(), preRenderedQuestions[currentQuestionIndex].datatype)) {
+        flaggedshowError(flaggedInputField, 'Value must be a ' + preRenderedQuestions[currentQuestionIndex].datatype + '.');
+        datatype.value = ''; // Clear the input field
+        validationPassed = false; // Set validation as failed
+    } else {
+        flaggedhideError(datatype);
+    }
+
+    // If validation fails, stop the function execution
+    if (!validationPassed) return;
+    
+    // Decide which values to submit based on visibility and user interaction
+    const flaggedValueToSubmit = flaggedFieldVisible && flaggedFieldValue ? flaggedFieldValue : flaggedDefaultValue;
+    
+    // Prepare data to send
+    const dataToSend = {
+        rowId: displayedRowId, 
+        flaggedValue: flaggedValueToSubmit,
+    };
+
+    // Perform validation to ensure at least one field has a value
+    if (!flaggedFieldVisible && !flaggedyesClicked) {
+        alert("Please provide an answer or close the dialog box.");
+        return; // Prevent form submission or further processing
+    }
+
+    // Send the data to the server
+    submitflaggedDialogData(dataToSend);
+});
+
+// for flagged values page; function to show error message and apply shake animation
+function flaggedshowError(inputField, message) {
+    let errorContainer = inputField.nextElementSibling; // Assumes the error container is the next sibling element
+    errorContainer.textContent = message;
+    errorContainer.style.display = 'block';
+    inputField.classList.add('flagged-input-error-highlight', 'flagged-input-shake');
+    setTimeout(() => {
+        inputField.classList.remove('flagged-input-shake');
+    }, 1000); // remove the class after the animation ends
+}
+
+// Function to hide error message
+function flaggedhideError(inputField) {
+    let errorContainer = inputField.nextElementSibling; // Assumes the error container is the next sibling element
+    if (errorContainer) {
+        errorContainer.style.display = 'none';
+        inputField.classList.remove('flagged-input-error-highlight');
+    }
+}
+
+//flagged value page (Close dialog function updated to reset error states)
+document.getElementById('closeFlaggedDialog').addEventListener('click', function() {
+    const flaggedDialog = document.getElementById('flaggedDialog');
+    const flaggedOverlay = document.getElementById('flaggedOverlay');
+    
+    flaggedyesClicked = false;
+    flaggednoClicked = false;
+    
+    // Hide the dialog and overlay
+    flaggedDialog.style.display = 'none';
+    flaggedOverlay.classList.remove('active');
+
+    // Call resetDialogState to reset the dialog state
+    resetflaggedDialogState();
+});
+
+// Handle clicks on the 'Yes' button in the flagged dialog
+document.querySelectorAll('.flagged-modify-btn .flagged-yes-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        flaggedyesClicked = true;
+        flaggednoClicked = false;
+        // Determine which input field to show based on the parent row's ID
+        let parentRow = this.parentElement; // Get the parent row of the clicked button
+
+        // Only select the input field that is a child of this parent row
+        let inputField = parentRow.querySelector('.flagged-input-field');
+
+        // Display the relevant input field
+        inputField.style.display = 'block';
+        inputField.style.opacity = '0';
+        setTimeout(function() {
+            inputField.style.opacity = '1';
+        }, 10); // Fade in effect
+    });
+});
+
+//flagged value page (dialog no button)
+let flaggednoButton = document.querySelectorAll('.flagged-no-btn');
+flaggednoButton.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        flaggedyesClicked = false; 
+        flaggednoClicked = true;
+
+        let parentRow = this.parentElement;
+        let inputField = parentRow.querySelector('.flagged-input-field');
+        let errorContainer = parentRow.querySelector('.flagged-input-error-message');
+
+        console.log('No button clicked for row:', parentRow.id); // Debugging line
+        console.log('Error container should be hidden:', errorContainer.id); // Debugging line
+
+        // Hide the input field immediately
+        inputField.style.display = 'none';
+        
+        // Hide the error message immediately
+        errorContainer.style.display = 'none';
+        console.log('Error container display after hiding:', errorContainer.style.display); // Debugging line
+    });
+});
+
+// Event listener for the 'Show Flagged Values' button
+document.getElementById('show-flagged-values-btn').addEventListener('click', function() {
+    console.log('DEKHO ZARA Show Flagged Values button clicked');
+    fetch('/show_flagged_values_questions', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("FOR FLAGGED Received data:", data); 
+        const flaggedValuesQuestions = data.questions.map(question => ({
+            question: question.question, // Assuming 'question' contains the question text
+            rule_violation: question.rule_violation, // Rule violation text
+            name: `flagged_value_question_${question.row_id}`, // Unique identifier for each question
+            row_id: question.row_id, // Row ID if available
+            col_name: question.col_name, // Column name for the flagged value
+            flagged_value: question.flagged_value, // The actual flagged value
+            datatype: question.datatype
+        }));
+
+        // Log each question to verify the presence of primary_key
+        flaggedValuesQuestions.forEach(question => {
+                    console.log("Question object:", question); // Log each question object
+                });
+
+        // Update preRenderedQuestions with the new data
+        preRenderedQuestions = flaggedValuesQuestions;
+        // Reset the current question index and display the first question
+        currentQuestionIndex = 0;
+        displayQuestion();
+
+        // If you want to show the dialog for the first flagged value question
+        if (flaggedValuesQuestions.length > 0) {
+            const firstQuestion = flaggedValuesQuestions[0];
+            updateDialogBoxForFlaggedValue(firstQuestion); // Function to update and show the dialog box for flagged values
+        }
+    })
+    .catch(error => console.error(error));
+
+    // Hide other buttons and show necessary ones for flagged values questions
+    yesBtn.style.display = 'none';
+    noBtn.style.display = 'none';
+    backBtn.style.display = 'none';
+    findMissingBtn.style.display = 'none';
+    findMissingYesBtn.style.display = 'none';
+    findMissingNoBtn.style.display = 'none';
+    findMissingBackBtn.style.display = 'none';
+    flaggedValue.style.display = 'none';
+
+    flaggedValuesnoBtn.style.display = 'inline-block';
+    flaggedValuesbackBtn.style.display = 'inline-block';
+    submitAnswerBtn.style.display = 'inline-block';
+});
+
+//flagged value page
+// Event listener for the 'Next Question' button on flagged values page
+document.getElementById('show-flagged-values-no-btn').addEventListener('click', function () {
+    currentQuestionIndex++;
+    if (currentQuestionIndex < preRenderedQuestions.length - 1) {
+        displayQuestion();
+    } else if (currentQuestionIndex === preRenderedQuestions.length - 1) {
+        // This is the last question, display it and show the last question notification
+        displayQuestion();
+        showLastQuestionNotification();
+        document.getElementById('show-flagged-values-no-btn').textContent = 'Finish';
+    } else {
+        // All questions have been answered
+        handleAllQuestionsAnswered();
+    }
+});
+
+//flagged value page
+document.getElementById('show-flagged-values-back-btn').addEventListener('click', function () {
+    let foundUnanswered = false;
+    // Decrement currentQuestionIndex until an unanswered question is found or the beginning of the array is reached
+    for (let i = currentQuestionIndex - 1; i >= 0; i--) {
+        if (!preRenderedQuestions[i].answered) {
+            currentQuestionIndex = i;
+            displayQuestion();
+            foundUnanswered = true;
+            break;
+        }
+    }
+
+    // If an unanswered question is found, display it
+    if (foundUnanswered) {
+        displayQuestion();
+    } else {
+        // Optionally, handle the case where no previous unanswered questions are found
+        alert("No more previous unanswered questions.");
+    }
+            });
+
+//flagged value page
+function submitflaggedDialogData(data) {
+    // Fetch the column names and default values from the dialog display
+    const flaggedColumn = document.getElementById('flaggedColumnName').textContent;
+    const flaggedtValue = document.getElementById('flaggedDefaultValue').textContent;
+ 
+    // Initialize the payload with rowId and column names
+    const payload = {
+        row_id: data.rowId,
+        flaggedColumn: flaggedColumn,
+        flaggedValue: (flaggedInputField.style.display !== 'none' && data.flaggedValue && data.flaggedValue.trim() !== '') ? data.flaggedValue.trim() : flaggedDefaultValue,
+    };
+    console.log('Preparing to send data to server:', payload);
+
+    // Make the POST request to the server endpoint
+    fetch('/flagged_update_dialog_values', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok. Status: ' + response.status);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if(data.status === "success") {
+            preRenderedQuestions[currentQuestionIndex].answered = true;
+            // After updating, refresh the current question display or move to the next
+            displayNextQuestionForIndexPage();
+            closeModal();
+        } else {
+            console.error('Error updating values:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+    });
+}
+
+//flagged value page
+ function clearflaggedErrorState() {
+    this.classList.remove('flagged-input-error');
+    this.placeholder = this === flaggedInputField ? "Please Enter the Correct Value for":"";
+}
+
+const flaggedInputField = document.getElementById('flaggedInputField');
+
+flaggedInputField.addEventListener('input', clearflaggedErrorState);
+
+//index page ( Get input fields and error message containers)
+const flaggedInputError = document.getElementById('flaggedInputError');
+
+//flagged value page ( Reset error state when user starts typing in the input fields )
+function resetflaggedErrorState(inputField, errorContainer) {
+        inputField.classList.remove('flagged-input-error-highlight', 'flagged-input-shake');
+        errorContainer.style.display = 'none';
+    }
+
+flaggedInputField.addEventListener('input', function() {
+        resetflaggedErrorState(flaggedInputField, flaggedInputError);
+    });
+
+//flagged value page
+function provideAnswer() {
+    
+    const userQuery = userQueryInput.value.trim();
+    const expectedDatatype = preRenderedQuestions[currentQuestionIndex].data.datatype;
+
+    // Validate user input
+    if (!validateUserInput(userQuery, expectedDatatype)) {
+        displayErrorMessage(`Invalid input. Please enter a valid ${expectedDatatype}.`);
+        return; // Prevent form submission
+    }
+
+    // If the input is valid, prepare the data for submission
+    if (userQuery !== '') {
+        const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+        const dataToSend = {
+            rowId: currentQuestion.data.row_id,
+            mainColumn: currentQuestion.data.mainColumn,
+            answer: userQuery
+        };
+
+        // Send the data to the server
+        sendDataToServer(dataToSend, function (success) { // Pass a callback function for success
+            if (success) {
+                // Clear the input field only after successful submission
+                userQueryInput.value = '';
+                // Move to the next question or end the questionnaire
+                currentQuestionIndex++;
+                if (currentQuestionIndex < totalQuestions) {
+                    displayQuestion();
+                } else {
+                    //alert('All questions answered. Submitting form...');
+                    handleAllQuestionsAnswered();
+                }
+            }
+        });
+    }
+}
+
+//flagged value page
+function updateDialogBoxForFlaggedValue(col_name, flagged_value) {
+
+    document.getElementById('flaggedColumnName').textContent = col_name;
+        document.getElementById('flaggedDefaultValue').textContent = flagged_value;
+        console.log('YEAH YEAH YEAH:', col_name); 
+          // Add event listeners for Yes/No buttons in both rows
+    const flaggedyesButtons = document.querySelectorAll('.flagged-yes-btn');
+    const flaggednoButtons = document.querySelectorAll('.flaggefno-btn');
+
+    flaggedyesButtons.forEach(button => button.addEventListener('click', flaggedhandleYesClick));
+    flaggednoButtons.forEach(button => button.addEventListener('click', flaggedhandleNoClick));
+}
+
+//flagged value page
+function flaggedhandleYesClick(event) {
+    // Show the input field to enter the correct value in the related row
+    const parentRow = event.target.closest('.flagged-row'); // Find the closest parent row of the clicked button
+    const inputField = parentRow.querySelector('.flagged-input-field');
+    inputField.style.display = 'block';
+}
+
+//flagged value page
+function flaggedhandleNoClick(event) {
+    // Find the closest parent row of the clicked button
+    const parentRow = event.target.closest('.flagged-row');
+
+    // Find the input field within this row
+    const inputField = parentRow.querySelector('.flagged-input-field');
+
+    // Check if the input field exists and hide it if so
+    if (inputField) {
+        inputField.style.display = 'none'; // Hide the input field
+
+        // Optionally, you might also want to clear any value that was entered
+        inputField.value = '';
+    }
+}   
+
 
 function handleAllQuestionsAnswered() {
     // Close the modal and clear the input field

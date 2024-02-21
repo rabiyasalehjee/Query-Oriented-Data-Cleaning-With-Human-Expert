@@ -418,8 +418,8 @@ button {
 .default-value {
     margin-right: 10px; /* Adjust space between default value and buttons */
     text-align: center;
-    flex-basis: 100px; /* Fixed basis for default value, adjust as needed */
-    flex-shrink: 0; /* Prevent the default value from shrinking */
+    flex-basis: auto; /* Fixed basis for default value, adjust as needed */
+    flex-shrink: 1; /* Prevent the default value from shrinking */
 }
 
 .modify-btn-group {
@@ -573,3 +573,201 @@ button {
     backdrop-filter: blur(1px); /* Apply blur effect */
   }
   
+  /* Flagged Values Dialog Box */
+.flagged-dialog {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 15px;
+    padding-top: 40px; /* Extra padding at the top for the close button */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #fff;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    width: 40%; /* Fixed width */
+    max-width: 90%; /* Maximum width of the dialog box */
+    box-sizing: border-box; /* Ensures padding doesn't add to the width */
+    z-index: 1000;
+    position: relative;
+}
+
+.flagged-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Spread content evenly */
+    margin-bottom: 15px;
+    padding: 10px;
+    border-bottom: 1px solid #eaeaea;
+}
+
+.flagged-column-name, .flagged-default-value, .flagged-modify-btn, .flagged-input-field {
+/* Using 'min-width' and 'max-width' to define ranges for different elements */
+    min-width: 0; /* Prevent flex items from overflowing */
+    white-space: nowrap; /* Prevent text from wrapping */
+    overflow: hidden; /* Hide overflow */
+    text-overflow: ellipsis; /* Add an ellipsis to text that overflows */
+}
+
+.flagged-column-name {
+    flex: 1; /* Allows the column name to grow */
+    margin-right: 5px;
+    text-align: left;
+}
+
+.flagged-default-value {
+    margin-right: 5px; /* Adjust space between default value and buttons */
+    text-align: center;
+    flex-basis: auto; /* Fixed basis for default value, adjust as needed */
+    flex-shrink: 1; /* Prevent the default value from shrinking */
+}
+
+.flagged-modify-btn-group {
+    display: flex;
+    flex-shrink: 0; /* Prevent button group from shrinking */
+}
+
+.flagged-modify-btn {
+    padding: 4px 8px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease-in-out;
+    width: 60px; /* Smaller button width */
+    
+}
+
+.flagged-yes-btn {
+    background-color: #5cb85c;
+    color: white;
+    border-color: #4cae4c;
+}
+
+.flagged-no-btn {
+    background-color: #d9534f;
+    color: white;
+    border-color: #d43f3a;
+}
+
+.flagged-modify-btn:hover {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+
+.flagged-input-field {
+    flex: 1; /* Allows the input field to grow twice as much as the column names */
+    margin-left: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.flagged-input-error {
+    border-color: red; /* Highlight error fields */
+}
+
+.flagged-input-error-highlight {
+    border: 1px solid red; /* Red border to indicate error */
+}
+
+.flagged-input-error-message {
+    color: red;
+    font-size: 0.8rem;
+    display: none; /* Initially hidden */
+    margin-top: 4px;
+}
+.flagged-input-shake {
+    animation: input-shake-animation 0.82s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* Animation for input shake */
+@keyframes flagged-input-shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+#submitFlaggedAnswer {
+    background-color: #337ab7;
+    color: white;
+    padding-top: 20px;
+    padding: 10px 15px;
+    border-top: 2px solid #eaeaea;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    display: block;
+    margin: 20px auto 0;
+    font-weight: bold;
+  }
+  
+#submitFlaggedAnswer:hover {
+    background-color: #286090;
+  }
+
+/* Close button */
+.close-flagged-dialog {
+    position: absolute;
+    top: 2px; 
+    right: 15px; 
+    padding: 0;
+    background-color: transparent;
+    color: #aaa;
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+}
+
+.close-flagged-dialog:hover {
+    color: #f44336;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    /* Increase width for better readability on smaller screens */
+    .flagged-dialog {
+        width: 95%;
+    }
+
+    .flagged-input-field, .flagged-column-name, .flagged-modify-btn-group, .flagged-default-value {
+        /* Full width on smaller screens */
+        flex-basis: calc(100% - 20px); 
+        margin-bottom: 10px; /* Add spacing */
+    }
+
+    .flagged-modify-btn-group {
+        justify-content: flex-start; /* Align buttons to the start */
+    }
+}
+
+@media (max-width: 480px) {
+    .flagged-row {
+        flex-direction: column; /* Stack elements vertically */
+    }
+
+    /* Full width for all elements on smallest screens */
+    .flagged-modify-btn, .flagged-default-value, .flagged-column-name, .flagged-input-field {
+        flex-basis: 100%;
+        margin-bottom: 10px;
+    }
+}
+
+
+/* Overlay styles for flagged dialog */
+.flagged-overlay {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.5); /* Semi-transparent black background */
+    z-index: 999; /* Below the dialog box */
+}
+
+.flagged-overlay.active {
+    display: block; /* Show overlay when active */
+}
+

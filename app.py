@@ -453,21 +453,26 @@ def determine_column_datatype(column):
     else:
         return 'text'
 
-
 def generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes):
     questions = []
     for i, flagged_value in enumerate(flagged_values):
         primary_key = primary_keys[i]
-        # Fetch the row from the database using the primary key
         row = YourTable.query.filter_by(ID=primary_key).first()
         if row:
-            # Iterate over each column to find and generate questions for all flagged values
             for col_name, col_value in row.__dict__.items():
                 if col_value == flagged_value:
                     datatype = column_datatypes.get(col_name, 'unknown datatype')
                     rule_violation_text = (f"This value is violating the rules of the database; the expected value should be of {datatype} datatype.")
-                    question_text = f"The value '{flagged_value}' in the '{col_name}' column is marked as flagged. Please provide accurate value."
-                    questions.append({"question": question_text, "rule_violation": rule_violation_text})
+                    question_text = f"The value '{flagged_value}' in the '{col_name}' column is marked as flagged. Please provide an accurate value."
+                    questions.append({
+                        "row_id":primary_key,
+                        "question": question_text,
+                        "rule_violation": rule_violation_text,
+                        "col_name": col_name,
+                        "flagged_value": flagged_value,
+                        "datatype": datatype
+                    })
+                    #print(f"Question Data (Before Adding to Questions): {questions}")
     return questions
 
 @app.route('/show_flagged_values_questions')
@@ -476,6 +481,46 @@ def show_flagged_values_questions():
     questions = generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes)
     return jsonify({'questions': questions})
 
+@app.route('/flagged_update_dialog_values', methods=['POST'])
+def flagged_update_dialog_values():
+    data = request.get_json()  # Extract data from the POST request
+    print("Received data:", data)  # Debugging: Log the received data
+
+    try:
+        row_id = data.get('row_id')
+        if row_id is None or row_id == '':
+            print("rowId is missing or empty")
+            return jsonify({"status": "error", "message": "rowId is missing or invalid"}), 400
+        row_id = int(row_id)  # Now convert to int
+
+        column_name = data.get('flaggedColumn')  # Extract the column name that needs to be updated
+        new_value = data.get('flaggedValue')  # Extract the new value for the flagged column
+
+        # Debugging: Log the extracted values
+        print("Row ID:", row_id)
+        print("Column Name:", column_name)
+        print("New Value:", new_value)
+
+        # Fetch the record to update from the database using the row ID
+        record = db.session.query(YourTable).filter_by(ID=row_id).first()
+        if record:
+            # Dynamically update the specified column with the new value
+            setattr(record, column_name, new_value)
+            db.session.commit()  # Commit the changes to the database
+
+            # Debugging: Log success message
+            print(f"Successfully updated row {row_id}, column {column_name} with value {new_value}")
+            return jsonify({"status": "success", "message": "Value updated successfully"}), 200
+        else:
+            # Debugging: Log record not found
+            print(f"Record not found for Row ID: {row_id}")
+            return jsonify({"status": "error", "message": "Record not found"}), 404
+
+    except Exception as e:
+        # Debugging: Log the error
+        print(f"Error updating values: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
 @app.route('/log_current_row_id', methods=['POST'])
 def log_current_row_id():
     data = request.get_json()
@@ -549,8 +594,6 @@ def is_valid_integer(value):
         return True
     except ValueError:
         return False
-
-# Add additional validation functions for other data types as needed.
 
 # Function to update the database with the provided answer
 def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainColumn, expected_datatype):

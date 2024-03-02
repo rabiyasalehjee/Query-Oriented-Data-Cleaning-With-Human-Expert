@@ -1,15 +1,18 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from sqlalchemy import Table, MetaData
 import pandas as pd
 from flask_cors import CORS
-from sqlalchemy import create_engine, MetaData
-
+from sqlalchemy import create_engine, MetaData,Table
+from sqlalchemy import inspect, Column, Float, DateTime, Integer
+from datetime import datetime
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import scoped_session, sessionmaker
+import threading
 
 app = Flask(__name__)
 CORS(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost/query_data_cleaning'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/query_data_cleaning'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
@@ -17,47 +20,47 @@ engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
 migrate = Migrate(app, db)
 
 metadata = MetaData()
+model_cache = {}
+lock = threading.Lock()
+
+BaseModel = declarative_base()
+BaseModel.query = db.session.query_property()
 
 class BaseModel(db.Model):
     __abstract__ = True
+    __declclassreg__ = False
 
 def create_tables():
     metadata.create_all(bind=engine)
 
-def create_model_class_internal(table_name):
-    table = Table(table_name, metadata, autoload_with=db.engine)
-
-    class_name = table_name.capitalize() + 'Model'
-
-    # Check if the class is already defined
-    if class_name in globals():
-        return globals()[class_name]
-
-    class DynamicModel(BaseModel):
-        __table__ = table
-
-    # Set the class name in the global namespace
-    globals()[class_name] = DynamicModel
-
-    return DynamicModel
-
 def create_model_class(table_name):
-    global YourTable
-    with app.app_context():
-        YourTable = create_model_class_internal(table_name)
-    
-    return YourTable
+    with lock:
+        if table_name in model_cache:
+            return model_cache[table_name]
 
-YourTable = None
-create_model_class('db_messy') 
+        metadata.reflect(bind=engine)
+        if table_name in metadata.tables:
+            table = metadata.tables[table_name]
+        else:
+            raise Exception(f"Table '{table_name}' does not exist.")
 
-def load_data_from_database():
+        class DynamicModel(BaseModel):
+            __table__ = table
+            __mapper_args__ = {'primary_key': [table.c.ID]}  # Adjust as needed
+
+        model_cache[table_name] = DynamicModel
+        return DynamicModel
+
+#YourTable = None
+#create_model_class('db_messy') 
+
+def load_data_from_database(model_class):
     with app.app_context():  # Enter the application context
-        # Assuming YourTable is a SQLAlchemy model
-        data = YourTable.query.all()
+        # Directly use the passed model class
+        data = model_class.query.all()
 
         # Extract relevant columns from the query result
-        columns_to_include = [column.key for column in YourTable.__table__.columns]
+        columns_to_include = [column.key for column in model_class.__table__.columns]
         data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
 
         # Convert the list of dictionaries to a DataFrame
@@ -65,9 +68,25 @@ def load_data_from_database():
 
     return dataframe  # Exit the application context before returning
 
-def apply_rules_to_database(YourTable):
-    with app.app_context():
-        from rules import apply_rules, save_flagged_values_to_database
-        dataframe = load_data_from_database()
-        cleaned_dataframe, flagged_values, primary_keys = apply_rules(dataframe, YourTable)
-        save_flagged_values_to_database(flagged_values, {}, cleaned_dataframe, YourTable)
+
+def create_clean_table_if_not_exists(clean_table_name='db_clean', dirty_table_name='db_messy'):
+    inspector = inspect(engine)
+    if clean_table_name not in inspector.get_table_names():
+        # Get the dirty table's columns
+        dirty_table = Table(dirty_table_name, metadata, autoload_with=engine)
+        columns = [column.copy() for column in dirty_table.columns]
+
+        # Define additional columns for the clean table
+        additional_columns = [
+            Column('ValidationScore', Float),
+            Column('ValidatedAt', DateTime),
+            Column('ValidatorId', Integer)
+        ]
+        columns.extend(additional_columns)
+
+        # Create the clean table with additional metadata columns
+        clean_table = Table(clean_table_name, metadata, *columns)
+        clean_table.create(engine)
+        print(f"Table '{clean_table_name}' created successfully.")
+    else:
+        print(f"Table '{clean_table_name}' already exists.")

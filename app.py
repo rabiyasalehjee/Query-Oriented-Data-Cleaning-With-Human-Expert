@@ -22,18 +22,23 @@ from sqlalchemy import inspect
 import logging
 from dateutil.parser import parse
 
-
 # Setup basic logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 pymysql.install_as_MySQLdb()
+create_clean_table_if_not_exists()
 
-YourTable = create_model_class('db_messy')
+TABLE_NAME = 'db_messy' 
+CLEAN_TABLE_NAME = 'db_clean'
+
 define_relationships(config_file_path='relationships_config.json')
 
-with app.app_context():  # Create tables within the application context
-    YourTable.__table__.create(bind=db.engine, checkfirst=True)
+# At the start of your app to create tables and apply rules
+with app.app_context():
+    model_class = create_model_class(TABLE_NAME)
+    model_class.__table__.create(bind=db.engine, checkfirst=True)
+    apply_rules_to_database(TABLE_NAME)  # Assuming this function now takes a table name
+    clean_model_class = create_model_class(CLEAN_TABLE_NAME)    
 
 # Load relationships configuration from JSON file
 def load_relationships_config():
@@ -43,7 +48,7 @@ def load_relationships_config():
 
 def fetch_data_with_primary_key():
     # Fetch data including primary key
-    data_with_primary_key = YourTable.query.all()
+    data_with_primary_key = model_class.query.all()
     return data_with_primary_key
 
 # Find related column based on relationships configuration
@@ -53,7 +58,7 @@ def find_related_column(column, relationships):
             return relationship['related_column']
     return None
 
-def update_database_with_cleaned_data(cleaned_dataframe, YourTable, primary_key_variations):
+def update_database_with_cleaned_data(cleaned_dataframe, model_class, primary_key_variations):
     try:
         for index, row in cleaned_dataframe.iterrows():
             # Find the primary key column variation that exists in the DataFrame
@@ -63,7 +68,7 @@ def update_database_with_cleaned_data(cleaned_dataframe, YourTable, primary_key_
                 # Update the row in the database based on the found primary key column
                 primary_key_value = row[primary_key_column]
                 print(f"Updating row with primary key {primary_key_column}={primary_key_value} in the database")
-                db.session.query(YourTable).filter(getattr(YourTable, primary_key_column) == primary_key_value).update(row.to_dict())
+                db.session.query(model_class).filter(getattr(model_class, primary_key_column) == primary_key_value).update(row.to_dict())
 
         
         db.session.commit()
@@ -127,9 +132,9 @@ def train_classification_model(dataframe, relationships_config):
     return classifier, vectorizer
 
 # Function to generate questions using the machine learning model
-def generate_questions_ml(dataframe, relationships_config, YourTable):
+def generate_questions_ml(dataframe, relationships_config, model_class):
     # Apply rules
-    cleaned_dataframe, flagged_values, primary_keys, column_datatypes  = apply_rules(dataframe, YourTable)# Unpack the tuple
+    cleaned_dataframe, flagged_values, primary_keys, column_datatypes  = apply_rules(dataframe, model_class)# Unpack the tuple
 
     # Train the classification model
     classifier, vectorizer = train_classification_model(cleaned_dataframe, relationships_config)
@@ -142,7 +147,7 @@ def generate_questions_ml(dataframe, relationships_config, YourTable):
     # Generate Questions for User
     for index, row in cleaned_dataframe.iterrows():
         # Dynamically fetch column names from the database
-        text_columns = [column.name for column in inspect(YourTable).columns]
+        text_columns = [column.name for column in inspect(model_class).columns]
 
         feature_vector = vectorizer.transform([str(row[column]) for column in text_columns])
 
@@ -230,10 +235,10 @@ def generate_question_for_relationship(row, relationship, relationships_config, 
 @app.route('/')
 def index():
     # Access dynamically created model
-    data = YourTable.query.all()
+    data = model_class.query.all()
 
     # Extract relevant columns from the query result
-    columns_to_include = [column.key for column in YourTable.__table__.columns]
+    columns_to_include = [column.key for column in model_class.__table__.columns]
     data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
 
     # Convert the list of dictionaries to a DataFrame
@@ -243,7 +248,7 @@ def index():
     relationships_config = load_relationships_config()
 
     # Generate questions using machine learning model
-    questions_ml = generate_questions_ml(dataframe, relationships_config, YourTable)
+    questions_ml = generate_questions_ml(dataframe, relationships_config, model_class)
 
     # Ensure 'Correction_Needed' column is present before dropping it
     if 'Correction_Needed' in dataframe.columns:
@@ -291,25 +296,36 @@ def update_dialog_values():
         row_id = data['rowId']
         main_column_name = data['mainColumn']
         related_column_name = data['relatedColumn']
+        table_name = CLEAN_TABLE_NAME
+        model_class = create_model_class(table_name)
 
-        # Fetch the record to update from the database using the row ID
-        record = db.session.get(YourTable, row_id)
-        if record is None:
-            return jsonify({"status": "error", "message": "Record not found"}), 404
+        # Insert or update the record in db_clean
+        record_clean = db.session.query(model_class).filter_by(ID=row_id).first()
 
-        # Update the main column if a new value is provided
+        if record_clean is None:
+            record_clean = model_class()
+            setattr(record_clean, 'ID', row_id)  # Assuming 'ID' is the primary key column name
+
+        # Update only the main and related columns in db_clean
         if 'mainValue' in data and data['mainValue'] is not None:
-            setattr(record, main_column_name, data['mainValue'])
+            setattr(record_clean, main_column_name, data['mainValue'])
 
-        # Update the related column if a new value is provided
         if 'relatedValue' in data and data['relatedValue'] is not None:
-            setattr(record, related_column_name, data['relatedValue'])
+            setattr(record_clean, related_column_name, data['relatedValue'])
 
+        # Add any additional metadata for the clean table here, if necessary
+        # For example:
+        record_clean.ValidationScore = ...
+        record_clean.ValidatedAt = datetime.now()
+        record_clean.ValidatorId = ...
+
+        db.session.add(record_clean)  # This will insert or update the record
         db.session.commit()
-        logging.info(f"Successfully updated row ID: {row_id}")
+
+        logging.info(f"Successfully updated row ID: {row_id} in {table_name}")
         response_data = {
             "status": "success",
-            "message": "Values updated successfully",
+            "message": f"Values updated successfully in {table_name}",
             "updatedValues": {
                 "mainValue": data.get('mainValue'),
                 "relatedValue": data.get('relatedValue'),
@@ -320,13 +336,14 @@ def update_dialog_values():
         return jsonify(response_data), 200
 
     except Exception as e:
-        logging.error(f"Error updating values: {e}", exc_info=True)
+        logging.error(f"Error updating values in {table_name}: {e}", exc_info=True)
+        db.session.rollback()
         return jsonify({"status": "error", "message": "Failed to update values"}), 500
-
+    
 def update_row_in_database(row_id, main_value, related_value):
     # Implement the logic to update the database row identified by row_id
     # with the new values for the main and related columns
-    record = YourTable.query.filter_by(ID=row_id).first()
+    record = model_class.query.filter_by(ID=row_id).first()
     if record:
         record.main_column = main_value  # Use the actual column name
         record.related_column = related_value  # Use the actual related column name
@@ -336,7 +353,8 @@ def update_row_in_database(row_id, main_value, related_value):
 
 @app.route('/find_missing_values')
 def find_missing_values():
-    data = YourTable.query.all()
+    model_class = create_model_class(TABLE_NAME)
+    data = model_class.query.all()
     dataframe = pd.DataFrame([row.__dict__ for row in data])
     relationships_config = load_relationships_config()
 
@@ -453,32 +471,66 @@ def determine_column_datatype(column):
     else:
         return 'text'
 
-def generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes):
+def generate_flagged_value_questions(flagged_values, primary_keys, model_class, column_datatypes, relationships_config, dataframe):
     questions = []
+
     for i, flagged_value in enumerate(flagged_values):
         primary_key = primary_keys[i]
-        row = YourTable.query.filter_by(ID=primary_key).first()
+        row = model_class.query.filter_by(ID=primary_key).first()
         if row:
+            row_id = row.ID  # Ensure row_id is set correctly for each row
+
+            # Generate relationship-based questions
+            relationship_questions = []
+            for relationship in relationships_config:
+                main_column = relationship['main_column']
+                related_column = relationship['related_column']
+                if main_column in row.__dict__ and related_column in row.__dict__:
+                    main_value = getattr(row, main_column)
+                    related_value = getattr(row, related_column)
+                    main_column_datatype = determine_column_datatype(dataframe[main_column])
+                    related_column_datatype = determine_column_datatype(dataframe[related_column])
+
+            # Process flagged values
             for col_name, col_value in row.__dict__.items():
                 if col_value == flagged_value:
                     datatype = column_datatypes.get(col_name, 'unknown datatype')
-                    rule_violation_text = (f"This value is violating the rules of the database; the expected value should be of {datatype} datatype.")
+                    rule_violation_text = f"This value is violating the rules of the database; the expected value should be of {datatype} datatype."
                     question_text = f"The value '{flagged_value}' in the '{col_name}' column is marked as flagged. Please provide an accurate value."
                     questions.append({
-                        "row_id":primary_key,
+                        "row_id": primary_key,
                         "question": question_text,
                         "rule_violation": rule_violation_text,
                         "col_name": col_name,
                         "flagged_value": flagged_value,
-                        "datatype": datatype
+                        "datatype": datatype,
+                        'mainColumn': main_column,
+                        'mainValue': main_value,
+                        'relatedColumn': related_column,
+                        'relatedValue': related_value,
+                        'mainColumnDatatype': main_column_datatype,
+                        'relatedColumnDatatype': related_column_datatype,
                     })
                     #print(f"Question Data (Before Adding to Questions): {questions}")
     return questions
 
 @app.route('/show_flagged_values_questions')
 def show_flagged_values_questions():
-    flagged_values, primary_keys, column_datatypes = apply_rules_to_database(YourTable)
-    questions = generate_flagged_value_questions(flagged_values, primary_keys, YourTable, column_datatypes)
+    # Access dynamically created model
+    data = model_class.query.all()
+    
+    # Extract relevant columns from the query result
+    columns_to_include = [column.key for column in model_class.__table__.columns]
+    data_dict_list = [{col: getattr(row, col) for col in columns_to_include} for row in data]
+    # Convert the list of dictionaries to a DataFrame
+    dataframe = pd.DataFrame(data_dict_list)
+
+    # Load relationships configuration from JSON file
+    relationships_config = load_relationships_config()
+    flagged_values, primary_keys, column_datatypes = apply_rules_to_database(TABLE_NAME)
+    print(f"Checking the values of flagged_values: {flagged_values} then we checked primary_keys: {primary_keys} after that we went to far and checked column_datatypes: {column_datatypes} ")
+    questions = generate_flagged_value_questions(flagged_values, primary_keys, model_class, column_datatypes, relationships_config, dataframe)
+    print(f"HERE IS THE CHECK POINT: {flagged_values}")
     return jsonify({'questions': questions})
 
 @app.route('/flagged_update_dialog_values', methods=['POST'])
@@ -502,7 +554,7 @@ def flagged_update_dialog_values():
         print("New Value:", new_value)
 
         # Fetch the record to update from the database using the row ID
-        record = db.session.query(YourTable).filter_by(ID=row_id).first()
+        record = db.session.query(model_class).filter_by(ID=row_id).first()
         if record:
             # Dynamically update the specified column with the new value
             setattr(record, column_name, new_value)
@@ -532,10 +584,11 @@ def log_current_row_id():
 
     return jsonify({'success': True})
 
+# find_missing_values dialog box
 @app.route('/process_answers', methods=['POST'])
 def process_answers():
     data = request.get_json()  # This will parse JSON data from the request
-    print(f"Received data: {data}")
+    print(f"Missing Received data: {data}")
 
     # Validate the presence of required fields
     required_fields = ['rowId', 'mainColumn', 'relatedColumn', 'answer']
@@ -555,7 +608,7 @@ def process_answers():
     user_answer = data['answer']  # User answer as a string
 
     # Ensure columns are valid
-    valid_columns = {column.name for column in inspect(YourTable).columns}
+    valid_columns = {column.name for column in inspect(model_class).columns}
     if main_column not in valid_columns or related_column not in valid_columns:
         print(f"Invalid column name(s): {main_column}, {related_column}")
         return jsonify({"status": "error", "message": "Invalid column name(s)"}), 400
@@ -564,7 +617,6 @@ def process_answers():
     expected_datatype = data.get('datatype', 'text')  # Default to 'text' if not specified
     user_answer = data.get('answer', None)
     print(f"Expected datatype: {expected_datatype}, Received answer: {user_answer}")
-
 
     # Convert user_answer to the expected data type
     if expected_datatype == 'integer':
@@ -578,7 +630,7 @@ def process_answers():
     try:
         return updateDatabaseWithAnswer(
             userQuery=user_answer,  # Use the converted user_answer
-            YourTable=YourTable,
+            model_class=model_class,
             rowId=row_id,  # Use the converted row_id
             relatedColumn=related_column,
             mainColumn=main_column,
@@ -596,13 +648,13 @@ def is_valid_integer(value):
         return False
 
 # Function to update the database with the provided answer
-def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainColumn, expected_datatype):
+def updateDatabaseWithAnswer(userQuery, model_class, rowId, relatedColumn, mainColumn, expected_datatype):
     try:
         # Convert rowId to integer if it's not already
         rowId = int(rowId)
 
         # Find the primary key column variation that exists in the DataFrame
-        primary_key_column = next((col for col in YourTable.__table__.columns.keys() if col.lower() == 'id'), None)
+        primary_key_column = next((col for col in model_class.__table__.columns.keys() if col.lower() == 'id'), None)
         if not primary_key_column:
             print("Primary key column not found in the table.")
             return jsonify({"status": "error", "message": "Primary key column not found"}), 404
@@ -616,7 +668,7 @@ def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainCol
         # Add additional checks and conversions for other datatypes (float, date, etc.) as necessary.
 
         # Fetch the record to update
-        record = YourTable.query.filter_by(ID=rowId).first()
+        record = model_class.query.filter_by(ID=rowId).first()
         if record:
             # Set the attribute value
             setattr(record, relatedColumn, userQuery)
@@ -637,17 +689,60 @@ def updateDatabaseWithAnswer(userQuery, YourTable, rowId, relatedColumn, mainCol
 def perform_database_operations():
     with app.app_context():
         # Use the SQLAlchemy session from the 'db' instance
-        data = YourTable.query.all()
+        data = model_class.query.all()
         dataframe = pd.DataFrame([row.__dict__ for row in data])
         relationships_config = load_relationships_config()
         train_classification_model(dataframe, relationships_config)
 
     return 'Database operations performed successfully!'
 
+@app.route('/update_clean_data', methods=['POST'])
+def update_clean_data():
+    clean_model_class = create_model_class(CLEAN_TABLE_NAME) 
+    data = request.get_json()
+    print("Received update request:", data)
+    try:
+        
+        # Retrieve or create a new record for the clean table
+        record = db.session.execute(db.select(clean_model_class).where(clean_model_class.ID == data['rowId'])).scalar_one_or_none()
+
+        #record = YourCleanTable.query.get(data['rowId'])
+        if not record:
+            record = clean_model_class(ID=data['rowId'])
+
+        # Set the main and related column values
+        setattr(record, data['mainColumn'], data['mainValue'])
+        setattr(record, data['relatedColumn'], data['relatedValue'])
+
+        # Set additional metadata columns
+        record.ValidationScore = 1.0  # Example default value
+        record.ValidatedAt = datetime.now()  # Current timestamp
+        record.ValidatorId = 1  # Example validator ID
+
+        db.session.add(record)
+        db.session.commit()
+
+        response_data = {
+        'status': 'success',
+        'message': 'Data stored successfully in the clean table',
+        'mainValue': data['mainValue'],
+        'relatedValue': data['relatedValue']
+        }
+
+        # Print the response data right before returning it
+        print("**Another one is Sending response:", response_data)
+        
+        return jsonify(response_data)
+ 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)})
+    
+
 if __name__ == "__main__":
     # Apply rules to the database during application startup
     with app.app_context():
-        flagged_values, primary_keys, column_datatypes = apply_rules_to_database(YourTable)
+        flagged_values, primary_keys, column_datatypes = apply_rules_to_database(TABLE_NAME)
 
         # Store flagged values, primary keys, and column datatypes in the Flask application context
         app.config['FLAGGED_VALUES'] = flagged_values

@@ -15,9 +15,10 @@ from datetime import datetime
 pymysql.install_as_MySQLdb()
 
 metadata = MetaData()
+# Define your table name as a variable
+TABLE_NAME = 'db_messy'
 
-class BaseModel(db.Model):
-    __abstract__ = True
+
 
 class DataCleaner:
     def __init__(self, dataframe):
@@ -87,8 +88,11 @@ class DataCleaner:
                 type_counts['other'] += 1
 
         # Determine the most common data type
-        most_common_type, _ = type_counts.most_common(1)[0]
-        return most_common_type if most_common_type else 'unknown'
+        if type_counts:  # Check if type_counts is not empty
+            most_common_type, _ = type_counts.most_common(1)[0]
+            return most_common_type
+        else:
+            return 'unknown'  # Return 'unknown' if type_counts is empty
 
 # Modify the FlaggedValues model to include the original_id column
 class FlaggedValues(BaseModel):
@@ -96,23 +100,6 @@ class FlaggedValues(BaseModel):
     id = db.Column(db.Integer, primary_key=True)
     original_id = db.Column(db.Integer, nullable=False)  # Add a column to store the original primary key ID
     f_value = db.Column(db.String(255))  # Changed column name to 'f_value'
-
-def create_model_class_internal(table_name):
-    table = Table(table_name, metadata, autoload_with=db.engine)
-
-    class_name = table_name.capitalize() + 'Model'
-
-    # Check if the class is already defined
-    if class_name in globals():
-        return globals()[class_name]
-
-    class DynamicModel(BaseModel):
-        __table__ = table
-
-    # Set the class name in the global namespace
-    globals()[class_name] = DynamicModel
-
-    return DynamicModel
 
 def get_primary_key(table):
     # Assuming primary key variations
@@ -133,12 +120,13 @@ def get_primary_keys_for_flagged_values(dataframe, col, primary_key_col, flagged
         # Handle the case where primary_key_col is None
         return []
 
-def apply_rules_to_database(YourTable):
+def apply_rules_to_database(table_name):
     with app.app_context():
-        dataframe = load_data_from_database()
-        cleaned_dataframe, flagged_values, primary_keys, column_datatypes = apply_rules(dataframe, YourTable)
-        update_database_with_cleaned_data(cleaned_dataframe, YourTable)
-        save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable)
+        model_class = create_model_class(table_name)
+        dataframe = load_data_from_database(model_class)
+        cleaned_dataframe, flagged_values, primary_keys, column_datatypes = apply_rules(dataframe, model_class)
+        update_database_with_cleaned_data(cleaned_dataframe, model_class)
+        save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, model_class)
     
     print("\nUnfiltered Flagged Values with their Primary Keys and Datatypes:\n")
     for key, values in flagged_values.items():
@@ -189,7 +177,7 @@ def flag_invalid_dates(column, col_name):
                 flagged_values.append(value)
     return flagged_values
 
-def apply_rules(dataframe, YourTable):
+def apply_rules(dataframe, model_class):
     cleaner = DataCleaner(dataframe)
     cleaner.apply_capitalization_rule()
     cleaner.apply_null_replacement_rule()
@@ -215,7 +203,7 @@ def apply_rules(dataframe, YourTable):
             flagged_values[col].extend(flag_invalid_dates(cleaned_dataframe[col], col))
 
         # Get primary keys for the flagged values
-        primary_key_col = get_primary_key(YourTable.__table__)
+        primary_key_col = get_primary_key(model_class.__table__)
         if primary_key_col is not None:
             if primary_key_col in cleaned_dataframe.columns:
                 primary_keys[col] = get_primary_keys_for_flagged_values(cleaned_dataframe, col, primary_key_col, flagged_values)
@@ -234,14 +222,14 @@ def standardize_date_format(date_value):
     return date_value
 
 # Save flagged values to a database table with primary keys
-def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, YourTable):
+def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_dataframe, model_class):
     # Create the flagged values table if it doesn't exist
     db.create_all()
 
     # Iterate through the flagged values and save them to the database with original primary key ID
     with app.app_context():
         for col_name, values in flagged_values.items():
-            primary_key_col = get_primary_key(YourTable.__table__)
+            primary_key_col = get_primary_key(model_class.__table__)
             primary_keys[col_name] = get_primary_keys_for_flagged_values(cleaned_dataframe, col_name, primary_key_col, flagged_values)
             for flagged_value, original_id in zip(values, primary_keys[col_name]):
                 # Check if the flagged value already exists in the database
@@ -255,17 +243,16 @@ def save_flagged_values_to_database(flagged_values, primary_keys, cleaned_datafr
         # Commit the changes to the database
         db.session.commit()
         
-
 #To set extend_existing=True
 db.Table('flagged_values', metadata, extend_existing=True)
 
 # Create the flagged values table if it doesn't exist
 with app.app_context():
     # YourTable is a SQLAlchemy model
-    YourTable = create_model_class('db_messy')
+    model_class = create_model_class('db_messy')
 
     # Load data from the database
-    dataframe = load_data_from_database()
+    dataframe = load_data_from_database(model_class)
 
     # Define primary_keys here before creating the table
     primary_keys = {col: [] for col in dataframe.columns}
@@ -273,11 +260,11 @@ with app.app_context():
     db.create_all()
 
     # Apply rules to clean the data and identify flagged values
-    cleaned_dataframe, flagged_values, primary_keys, column_datatypes = apply_rules(dataframe, YourTable)
+    cleaned_dataframe, flagged_values, primary_keys, column_datatypes = apply_rules(dataframe, model_class)
 
     # Iterate through the flagged values and save them to the database with original primary key ID
     for col_name, values in flagged_values.items():
-        primary_key_col = get_primary_key(YourTable.__table__)  # Define primary_key_col here
+        primary_key_col = get_primary_key(model_class.__table__)  # Define primary_key_col here
         primary_keys[col_name] = get_primary_keys_for_flagged_values(cleaned_dataframe, col_name, primary_key_col, flagged_values)
         for flagged_value, original_id in zip(values, primary_keys[col_name]):
             # Check if the flagged value already exists in the database
@@ -291,16 +278,16 @@ with app.app_context():
     # Commit the changes to the database
     db.session.commit()
     
-def update_database_with_cleaned_data(cleaned_dataframe, YourTable):
+def update_database_with_cleaned_data(cleaned_dataframe, model_class):
     with app.app_context():
-        primary_key_col = get_primary_key(YourTable.__table__)
+        primary_key_col = get_primary_key(model_class.__table__)
         if primary_key_col is None:
             print("Primary key column not found.")
             return
 
         for index, row in cleaned_dataframe.iterrows():
             # Retrieve the record using the primary key with the new method
-            record = db.session.get(YourTable, row[primary_key_col])
+            record = db.session.get(model_class, row[primary_key_col])
             if record:
                 # Update each column in the record
                 for col in cleaned_dataframe.columns:
@@ -337,4 +324,4 @@ relationships_config = load_relationships_config()
 
 # Apply rules to the database during application startup
 with app.app_context():
-    apply_rules_to_database(YourTable)
+    apply_rules_to_database(TABLE_NAME)

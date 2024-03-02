@@ -9,22 +9,40 @@
 </head>
 
 <body>
+    <!-- Hamburger Menu Button -->
+    <button class="hamburger-menu">
+        ☰
+    </button>
+    
+    <!-- Side Navigation Menu -->
+    <div id="side-menu" class="side-nav">
+        <a href="javascript:void(0)" class="closebtn">&times;</a>
+        <button id="index-find-missing-btn" class="action-btn-sidebar">Missing Values Question</button>
+        <button id="show-flagged-values-btn" class="action-btn-sidebar">Flagged Values Question</button>
+        <button id="all-questions-btn" class="action-btn-sidebar">All Questions</button>
+
+    </div>
     <div class="container">
         <h1>Query Oriented Data Cleaning</h1>
         <div id="question-container"></div>
+        <button id="index-back-btn"></button>
+        <button id="find-missing-back-btn"></button>
+        <button id="show-flagged-values-back-btn"></button>
         <p id="question-count"></p>
+        
+        <!-- Index Page-->
+        <button id="index-no-modify-btn" class="action-btn">No Modification Needed</button>
         <button id="index-yes-btn" class="action-btn">Provide Answer</button>
-        <button id="index-no-btn" class="action-btn">Next </button>
-        <button id="index-back-btn" class="action-btn">Back</button>
-        <button id="index-find-missing-btn" class="action-btn" onclick="window.location.href='/find_missing_values'">Missing Values Question</button>
+        <button id="index-no-btn" class="action-btn">Skip Question </button>
+        
+        <!-- Missing Values-->
         <button id="find-missing-yes-btn" class="action-btn">Provide Answer</button>
-        <button id="find-missing-no-btn" class="action-btn">Next Question</button>
-        <button id="find-missing-back-btn" class="action-btn">Previous Question</button>
+        <button id="find-missing-no-btn" class="action-btn">Skip Question</button>
+        
         <!-- Flagged Values-->
-        <button id="show-flagged-values-btn" class="action-btn">Flagged Values Question</button>
-        <button id="show-flagged-values-no-btn" class="action-btn">Next Question</button>
-        <button id="show-flagged-values-back-btn" class="action-btn">Previous Question</button>
-        <button id="submit-answer-btn">Provide Answer</button>
+        <button id="submit-answer-btn" class="action-btn">Provide Answer</button>
+        <button id="show-flagged-values-no-btn" class="action-btn">Skip Question</button>
+        
     </div>
     <div id="queryModal" class="modal">
         <div class="modal-content">
@@ -85,10 +103,13 @@
         let displayedRowIdMissing; // Variable to store the displayed row ID for missing data questions
         let currentQuestionIndex = 0;
         let displayedRowId; // Variable to store the displayed row ID
+        let currentQuestion = null; // This will hold the current question object
+
         var preRenderedQuestions = {{ pre_rendered_questions | safe }};
-        
         var generatedQueries = [];
+        var flaggedQuestions = [];
         var currentUrl = window.location.href; // Get the current URL
+
         let totalQuestions = preRenderedQuestions.length;
 
         // For Index Page **Flag variables to keep track of whether 'Yes' or 'No' has been clicked**
@@ -100,6 +121,7 @@
         let flaggednoClicked = false;
 
         const inputField = document.getElementById('user-query-input');
+        //find missing dialog box button
         const submitQueryBtn = document.getElementById('submit-query-btn');
         const closeModalBtn = document.getElementById('closeModal');
         const modal = document.getElementById('queryModal');
@@ -117,18 +139,23 @@
         const yesBtn = document.getElementById('index-yes-btn');
         const noBtn = document.getElementById('index-no-btn');
         const backBtn = document.getElementById('index-back-btn');
+        const indexNoModificationBtn = document.getElementById('index-no-modify-btn');
         const findMissingBtn = document.getElementById('index-find-missing-btn');
 
         // Select buttons for the find_missing_values page
         const findMissingYesBtn = document.getElementById('find-missing-yes-btn');
         const findMissingNoBtn = document.getElementById('find-missing-no-btn');
         const findMissingBackBtn = document.getElementById('find-missing-back-btn');
+        
 
         // Select buttons for the show_flagged_values page
         const flaggedValue = document.getElementById('show-flagged-values-btn');
         const flaggedValuesnoBtn = document.getElementById('show-flagged-values-no-btn');
         const flaggedValuesbackBtn = document.getElementById('show-flagged-values-back-btn');
+        
         const submitAnswerBtn = document.getElementById('submit-answer-btn');
+
+        document.getElementById('all-questions-btn').style.display = 'none';
 
         // Check if on the find_missing_values page
         if (currentUrl.includes('/find_missing_values')) {
@@ -137,29 +164,40 @@
             noBtn.style.display = 'none';
             backBtn.style.display = 'none';
             findMissingBtn.style.display = 'none';
+            indexNoModificationBtn.style.display = 'none';
             submitAnswerBtn.style.display = 'none';
+            flaggedValuesnoBtn.style.display = 'none';
+            flaggedValuesbackBtn.style.display = 'none';
+            
 
             // Show buttons on the find_missing_values page
             findMissingYesBtn.style.display = 'inline-block';
             findMissingNoBtn.style.display = 'inline-block';
             findMissingBackBtn.style.display = 'inline-block';
-            flaggedValuesnoBtn.style.display = 'none';
-            flaggedValuesbackBtn.style.display = 'none';
+            
+
+            
+            document.getElementById('all-questions-btn').style.display = 'block';
 
         } else {
             // Show buttons on the index page
             yesBtn.style.display = 'inline-block';
             noBtn.style.display = 'inline-block';
             backBtn.style.display = 'inline-block';
+            indexNoModificationBtn.style.display = 'inline-block';
+
             findMissingBtn.style.display = 'inline-block';
 
             // Hide buttons on the find_missing_values page
             findMissingYesBtn.style.display = 'none';
             findMissingNoBtn.style.display = 'none';
             findMissingBackBtn.style.display = 'none';
+            
             submitAnswerBtn.style.display = 'none';
             flaggedValuesnoBtn.style.display = 'none';
             flaggedValuesbackBtn.style.display = 'none';
+            
+
         }
 
 // Function to update the cursor style of the submit button
@@ -295,33 +333,70 @@ function showQuestionModal() {
     modal.style.display = 'block';
 }
 
-function displayQuestion(updatedQuestionIndex = currentQuestionIndex) {
+function displayQuestion(useFlagged = false, updatedQuestionIndex = currentQuestionIndex) {
+     // Log initial state for debugging
+    console.log("Before index-no-modify-btn click: Current question data", preRenderedQuestions[updatedQuestionIndex]);
+    console.log('Starting displayQuestion with updatedQuestionIndex:', updatedQuestionIndex);
+    console.log('Current state of preRenderedQuestions:', preRenderedQuestions);
+    console.log('Current value of currentQuestionIndex:', currentQuestionIndex);
+
+    
     // If updatedQuestionIndex is provided, use it; otherwise, use currentQuestionIndex
     let questionIndex = updatedQuestionIndex !== undefined ? updatedQuestionIndex : currentQuestionIndex;
-  
+    let questionArray = useFlagged ? flaggedQuestions : preRenderedQuestions;
+    console.log('Using questionIndex:', questionIndex);
     // Skip answered questions
-    while (questionIndex < totalQuestions && preRenderedQuestions[questionIndex].answered) {
-        questionIndex++;
-    }
+    while (questionIndex < totalQuestions && preRenderedQuestions[questionIndex] && preRenderedQuestions[questionIndex].answered) {
+    questionIndex++;
+}
 
     if (questionIndex < totalQuestions) {
         const currentQuestion = preRenderedQuestions[questionIndex];
         console.log('Current question object:', currentQuestion);
         // Check if the data property exists on the current question
-        if (currentQuestion.data) {
+        if (currentQuestion && typeof currentQuestion.data === 'object' && currentQuestion.data !== null) {
             console.log('Current Question Data:', currentQuestion.data);
 
             const datatype = currentQuestion.data.datatype || "appropriate";
             const mainColumn = currentQuestion.data.mainColumn; // Extracted mainColumn
             const relatedColumn = currentQuestion.data.relatedColumn; // Extracted relatedColumn
 
-            console.log('Datatype:', datatype);
+            console.log('Your Datatype:', datatype);
             console.log('Main Column:', mainColumn); // Log the extracted mainColumn
             console.log('Related Column:', relatedColumn); // Log the extracted relatedColumn
         } else {
             // If currentQuestion.data is undefined, handle the error or initialize it
-            console.error('Current Question Data is undefined.');
-            // Initialize currentQuestion.data or handle the lack of data appropriately
+            console.error('Current Question Data is not an object or is null. Question object:', currentQuestion);
+            // Initialize the data property with an empty object or with default values
+            if (currentQuestion) {
+                // Check if the data property exists on the current question and has the properties
+                let datatype, mainColumn, relatedColumn;
+                if (currentQuestion.data && typeof currentQuestion.data === 'object' && currentQuestion.data !== null) {
+                    datatype = currentQuestion.data.datatype;
+                    mainColumn = currentQuestion.data.mainColumn;
+                    relatedColumn = currentQuestion.data.relatedColumn;
+                    console.log('**NO Datatype:', datatype);
+                    console.log('**No Main Column:', mainColumn); // Log the extracted mainColumn
+                    console.log('** NO Related Column:', relatedColumn); // Log the extracted relatedColumn
+                        // ... and so on
+                } else {
+                    // Use the properties directly from the currentQuestion object
+                    datatype = currentQuestion.datatype;
+                    mainColumn = currentQuestion.mainColumn;
+                    relatedColumn = currentQuestion.relatedColumn;
+
+                    console.log('**HI Datatype:', datatype);
+                    console.log('**HI Main Column:', mainColumn); // Log the extracted mainColumn
+                    console.log('** HI Related Column:', relatedColumn); // Log the extracted relatedColumn
+                        // ... and so on
+                }
+                
+            } else {
+                // Handle the case where currentQuestion itself is null
+                console.error('currentQuestion is null, cannot initialize data property.');
+                // Additional error handling code here
+            }
+
         }
 
         const datatype = currentQuestion.data && currentQuestion.data.datatype ? currentQuestion.data.datatype : "appropriate";
@@ -438,6 +513,63 @@ function submitAnswer() {
         });
     }
 }
+
+document.getElementById('all-questions-btn').addEventListener('click', function() {
+    window.location.href = 'http://127.0.0.1:5001/'; 
+});
+
+// index page
+document.getElementById('index-no-modify-btn').addEventListener('click', function() {
+    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
+    console.log("Data sent for database update:", currentQuestion);
+    
+    // Check if currentQuestion and currentQuestion.data are defined
+    if (currentQuestion) {
+            console.log('Proceeding with:', currentQuestion);
+            // Extract necessary data from the current question
+            const dataToSend = {
+                rowId: currentQuestion?.row_id,
+                mainColumn: currentQuestion?.mainColumn,
+                mainValue: currentQuestion?.mainValue,
+                relatedColumn: currentQuestion?.relatedColumn,
+                relatedValue: currentQuestion?.relatedValue
+            };
+            console.log("Sending data to server:", dataToSend);
+
+            // Send the data to a Flask route to handle the database update
+            fetch('/update_clean_data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dataToSend)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log("Database updated successfully, updating front-end state...");
+                    // Mark the current question as answered
+                //preRenderedQuestions[currentQuestionIndex].answered = true;
+                if (currentQuestionIndex < preRenderedQuestions.length) {
+                    preRenderedQuestions[currentQuestionIndex].answered = true;
+                }
+                // Update the frontend state
+            preRenderedQuestions[currentQuestionIndex].mainValue = data.mainValue;
+            console.log("::THIS SHOULD BE FIRST::", preRenderedQuestions[currentQuestionIndex].mainValue);
+            preRenderedQuestions[currentQuestionIndex].relatedValue = data.relatedValue;
+            console.log("::THIS SHOULD BE SECOND::", preRenderedQuestions[currentQuestionIndex].relatedValue);
+
+               //const currentQuestion = data;
+                // Display the next unanswered question
+                displayNextUnansweredQuestion();
+                } else {
+                    console.error('Failed to store data:', data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        
+    } else {
+        console.error('currentQuestion or currentQuestion.data is undefined:', currentQuestion);
+    }
+});
 
 // This function is called when the 'Yes' button is clicked on the index page
 function answerYes_index() {
@@ -965,7 +1097,8 @@ document.getElementById('index-back-btn').addEventListener('click', function () 
                 handleIndexPageButtonClick('back');
             });
 
-// Function to update the database with the provided answer
+// find_missing_values
+// Function to update the database with the provided answer through dialog box
 function updateDatabaseWithAnswer(userQuery, currentQuestion) {
                 const [_, rowId, mainColumn, relatedColumn] = currentQuestion.name.split('_');
 
@@ -1129,6 +1262,13 @@ findMissingNoBtn.addEventListener('click', function () {
 findMissingBackBtn.addEventListener('click', function () {
                 handleFindMissingPageButtonClick('back');
             });
+
+document.getElementById('index-find-missing-btn').addEventListener('click', function() {
+    window.location.href = '/find_missing_values';
+    
+        closeNav(); // Close the hamburger menu
+    });
+
 //***
 // Function to handle button click on the flagged values page
 function handleFlaggedValuesButtonClick(buttonId) {
@@ -1168,12 +1308,12 @@ document.getElementById('submit-answer-btn').addEventListener('click', function 
     
 
     // If you have any logic to set up the dialog content 343 3451420based on the current question, include it here
-    const currentQuestion = preRenderedQuestions[currentQuestionIndex];
-    if (currentQuestion) {
-        const flaggedID = currentQuestion.row_id;
-        const flaggedColumn = currentQuestion.col_name;
-        const flaggedValue = currentQuestion.flagged_value;
-        const datatype = currentQuestion.datatype;
+    const currentFlaggedQuestion = flaggedQuestions[currentQuestionIndex];
+    if (currentFlaggedQuestion) {
+        const flaggedID = currentFlaggedQuestion.row_id;
+        const flaggedColumn = currentFlaggedQuestion.col_name;
+        const flaggedValue = currentFlaggedQuestion.flagged_value;
+        const datatype = currentFlaggedQuestion.datatype;
         console.log('THE FLAGGED COLUMN ID: ', flaggedID)
         console.log('THE FLAGGED COLUMN DATATYPE: ', datatype)
 
@@ -1329,9 +1469,52 @@ flaggednoButton.forEach(function(btn) {
     });
 });
 
-// Event listener for the 'Show Flagged Values' button
-document.getElementById('show-flagged-values-btn').addEventListener('click', function() {
-    console.log('DEKHO ZARA Show Flagged Values button clicked');
+function updateFlaggedQuestionCount() {
+    const unansweredFlaggedQuestions = flaggedQuestions.filter(question => !question.answered).length;
+    const currentFlaggedQuestionNumber = currentFlaggedQuestionIndex + 1; // Assuming index is 0-based
+    questionCount.textContent = `Question ${currentFlaggedQuestionNumber} of ${unansweredFlaggedQuestions}`;
+}
+
+function showLastFlaggedQuestionNotification() {
+    const notificationContainer = document.createElement('div');
+    notificationContainer.textContent = "This is the last flagged question";
+    notificationContainer.className = 'last-question-notification'; // Use the class instead of inline styles
+
+    // Append this notification to the question container or any other suitable place in your DOM
+    questionContainer.appendChild(notificationContainer);
+
+    // Optionally, remove the notification after a few seconds
+    setTimeout(() => {
+        notificationContainer.remove();
+    }, 5000); // Adjust the time as needed
+}
+
+function handleAllFlaggedQuestionsAnswered() {
+    // Close the modal and clear the input field
+    closeModal();
+    userQueryInput.value = '';
+
+    // Hide all existing buttons
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => button.style.display = 'none');
+
+    // Display a completion message specific for flagged questions
+    questionContainer.innerHTML = '<p class="completion-message">Thank you! You have addressed all flagged questions.</p>';
+
+    // Create the "Return to Questions" button to go back to preRenderedQuestions
+    const returnButton = document.createElement('button');
+    returnButton.textContent = 'Return to Questions';
+    returnButton.id = 'return-questions-button';
+    returnButton.className = 'action-btn'; // Reuse the action-btn class for styling
+    returnButton.onclick = function() { 
+        // Logic to switch back to preRenderedQuestions display
+    };
+    
+    // Append the new button to the container
+    document.querySelector('.container').appendChild(returnButton);
+}
+
+function fetchAndUpdateFlaggedQuestions() {
     fetch('/show_flagged_values_questions', {
         method: 'GET',
         headers: {
@@ -1341,88 +1524,147 @@ document.getElementById('show-flagged-values-btn').addEventListener('click', fun
     .then(response => response.json())
     .then(data => {
         console.log("FOR FLAGGED Received data:", data); 
-        const flaggedValuesQuestions = data.questions.map(question => ({
-            question: question.question, // Assuming 'question' contains the question text
-            rule_violation: question.rule_violation, // Rule violation text
-            name: `flagged_value_question_${question.row_id}`, // Unique identifier for each question
-            row_id: question.row_id, // Row ID if available
-            col_name: question.col_name, // Column name for the flagged value
-            flagged_value: question.flagged_value, // The actual flagged value
-            datatype: question.datatype
-        }));
+        if (data && data.questions) {
+            // Assuming data.questions is an array of questions
+                flaggedQuestions  = data.questions.map(question => ({
+                question: question.question, // Assuming 'question' contains the question text
+                rule_violation: question.rule_violation, // Rule violation text
+                name: `flagged_value_question_${question.row_id}`, // Unique identifier for each question
+                row_id: question.row_id, // Row ID if available
+                col_name: question.col_name, // Column name for the flagged value
+                flagged_value: question.flagged_value, // The actual flagged value
+                datatype: question.datatype,
+                mainColumn: question.mainColumn,
+                mainValue: question.mainValue,
+                relatedColumn: question.relatedColumn,
+                relatedValue: question.relatedValue
+            }));
 
-        // Log each question to verify the presence of primary_key
-        flaggedValuesQuestions.forEach(question => {
-                    console.log("Question object:", question); // Log each question object
-                });
+            // Reset the current question index and display the first question
+            currentQuestionIndex = 0;
+            
+            displayFlaggedQuestion(0); // Display the first question from the updated array
 
-        // Update preRenderedQuestions with the new data
-        preRenderedQuestions = flaggedValuesQuestions;
-        // Reset the current question index and display the first question
-        currentQuestionIndex = 0;
-        displayQuestion();
-
-        // If you want to show the dialog for the first flagged value question
-        if (flaggedValuesQuestions.length > 0) {
-            const firstQuestion = flaggedValuesQuestions[0];
-            updateDialogBoxForFlaggedValue(firstQuestion); // Function to update and show the dialog box for flagged values
+            // If you want to show the dialog for the first flagged value question
+            if (flaggedQuestions.length > 0) {
+                const firstQuestion = flaggedQuestions[0];
+                updateDialogBoxForFlaggedValue(firstQuestion); // Function to update and show the dialog box for flagged values
+            } else {
+                // Handle the case where there are no flagged questions
+                console.log('No flagged questions received');
+            }
         }
     })
-    .catch(error => console.error(error));
+    .catch(error => console.error('Error fetching flagged questions:', error));
+}
 
-    // Hide other buttons and show necessary ones for flagged values questions
+let currentFlaggedQuestionIndex = 0; // Initialize this variable globally or in the same scope as currentQuestionIndex
+
+function displayFlaggedQuestion(questionIndex) {
+    // Similar initial checks and setup
+    if (questionIndex < flaggedQuestions.length) {
+        const currentFlaggedQuestion = flaggedQuestions[questionIndex];
+        console.log('Current flagged question object:', currentFlaggedQuestion);
+
+        // Update the UI components with the details from the flagged question
+        const questionLabel = questionContainer.querySelector('label');
+        const datatypeMessageContainer = document.getElementById('datatypeMessageContainer');
+
+        // Assuming 'formatQuestionText' is a function that formats the question text
+        if (questionLabel) {
+            questionLabel.textContent = formatQuestionText(currentFlaggedQuestion.question);
+        } else {
+            questionContainer.innerHTML = `<label>${formatQuestionText(currentFlaggedQuestion.question)}</label>`;
+        }
+
+        if (currentFlaggedQuestion.rule_violation) {
+            const ruleViolationText = currentFlaggedQuestion.rule_violation;
+            const tooltip = document.createElement('img');
+            tooltip.src = 'http://localhost/project/templates/info.png';
+            tooltip.className = 'tooltip-icon';
+            tooltip.alt = 'Info';
+            tooltip.title = ruleViolationText; // Tooltip text
+            const questionLabel = questionContainer.querySelector('label');
+            questionLabel.appendChild(tooltip);
+        }
+
+        // Display the datatype message for the flagged question
+        const datatypeMessage = `The answer is expected to be in ${currentFlaggedQuestion.datatype} format.`;
+        datatypeMessageContainer.innerText = datatypeMessage;
+
+        // Update the question count display
+        updateFlaggedQuestionCount();
+
+        updateSubmitButtonCursor();
+        // Check if this is the last question
+    if (questionIndex === flaggedQuestions.length - 1) {
+            document.getElementById('find-missing-no-btn').textContent = 'Finish';
+            document.getElementById('index-no-btn').textContent = 'Finish';
+            showLastFlaggedQuestionNotification(); // Call a function to display a notification
+        }
+    } else {
+        //alert('All questions answered. Submitting form...');
+        handleAllFlaggedQuestionsAnswered();
+    }
+}
+
+document.getElementById('show-flagged-values-btn').addEventListener('click', function() {
+    console.log('DEKHO ZARA Show Flagged Values button clicked');
+
+    // Call the new function to fetch and update flagged questions
+    fetchAndUpdateFlaggedQuestions();
+
+    // Continue with your existing UI updates for showing/hiding buttons related to flagged values questions
     yesBtn.style.display = 'none';
     noBtn.style.display = 'none';
     backBtn.style.display = 'none';
     findMissingBtn.style.display = 'none';
     findMissingYesBtn.style.display = 'none';
     findMissingNoBtn.style.display = 'none';
+    indexNoModificationBtn.style.display = 'none';
+    
     findMissingBackBtn.style.display = 'none';
     flaggedValue.style.display = 'none';
 
+    
     flaggedValuesnoBtn.style.display = 'inline-block';
     flaggedValuesbackBtn.style.display = 'inline-block';
     submitAnswerBtn.style.display = 'inline-block';
+    findMissingBtn.style.display = 'block';
+    document.getElementById('all-questions-btn').style.display = 'block';
+    closeNav(); // Function to close the navigation, if applicable
 });
 
 //flagged value page
+
 // Event listener for the 'Next Question' button on flagged values page
 document.getElementById('show-flagged-values-no-btn').addEventListener('click', function () {
-    currentQuestionIndex++;
-    if (currentQuestionIndex < preRenderedQuestions.length - 1) {
-        displayQuestion();
-    } else if (currentQuestionIndex === preRenderedQuestions.length - 1) {
+    currentFlaggedQuestionIndex++;
+    if (currentFlaggedQuestionIndex < flaggedQuestions.length - 1) {
+        displayFlaggedQuestion(currentFlaggedQuestionIndex);
+    } else if (currentFlaggedQuestionIndex === flaggedQuestions.length - 1) {
         // This is the last question, display it and show the last question notification
-        displayQuestion();
-        showLastQuestionNotification();
+        displayFlaggedQuestion(currentFlaggedQuestionIndex);
+        //showLastQuestionNotification();
         document.getElementById('show-flagged-values-no-btn').textContent = 'Finish';
     } else {
         // All questions have been answered
-        handleAllQuestionsAnswered();
+        handleAllFlaggedQuestionsAnswered();
     }
 });
 
 //flagged value page
 document.getElementById('show-flagged-values-back-btn').addEventListener('click', function () {
-    let foundUnanswered = false;
-    // Decrement currentQuestionIndex until an unanswered question is found or the beginning of the array is reached
-    for (let i = currentQuestionIndex - 1; i >= 0; i--) {
-        if (!preRenderedQuestions[i].answered) {
-            currentQuestionIndex = i;
-            displayQuestion();
-            foundUnanswered = true;
-            break;
-        }
-    }
-
-    // If an unanswered question is found, display it
-    if (foundUnanswered) {
-        displayQuestion();
+    currentFlaggedQuestionIndex--;
+    if (currentFlaggedQuestionIndex >= 0) {
+        displayFlaggedQuestion(currentFlaggedQuestionIndex);
     } else {
-        // Optionally, handle the case where no previous unanswered questions are found
-        alert("No more previous unanswered questions.");
+        // If there are no more previous flagged questions, reset to the first question or handle accordingly
+        alert("No more previous flagged questions.");
+        currentFlaggedQuestionIndex = 0; // Reset index to stay within bounds, or you might want to handle differently
     }
-            });
+});
+
 
 //flagged value page
 function submitflaggedDialogData(data) {
@@ -1604,12 +1846,42 @@ function showLastQuestionNotification() {
     }, 5000); // Adjust the time as needed
 }
 
+// Find the hamburger button by its class and add an event listener
+document.querySelector('.hamburger-menu').addEventListener('click', function() {
+        // This function will have access to toggleMenu because it's defined in the same scope
+        toggleMenu();
+    });
+
+// Find the close button by its class and add an event listener
+document.querySelector('.closebtn').addEventListener('click', function() {
+        closeNav();
+    });
+
+function openNav() {
+    document.getElementById("side-menu").style.width = "250px";
+}
+
+function closeNav() {
+    document.getElementById("side-menu").style.width = "0";
+}
+
+function toggleMenu() {
+        var menu = document.getElementById("side-menu");
+        if (menu.style.width === '250px') {
+            closeNav();
+        } else {
+            openNav();
+        }
+    }
+
 if (totalQuestions > 0) {
     displayQuestion();
     } else {
         alert('No questions found.');
             }
 });
+
+
     </script>
 </body>
 </html>

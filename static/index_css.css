@@ -40,10 +40,25 @@ button {
     cursor: pointer;
 }
 
+/* Specific styling for the "All Questions" button */
+#all-questions-btn {
+    color: #fff;
+    background-color: #2196F3;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+   
+}
+
+#all-questions-btn:hover {
+    background-color: #45a049; /* Darker green on hover */
+}
+
 /* Styling for the index page buttons */
 #index-yes-btn,
-#index-no-btn,
-#index-back-btn {
+#index-no-btn{
     margin-top: 20px;
     padding: 10px 20px;
     font-size: 16px;
@@ -61,16 +76,17 @@ button {
 }
 
 #index-back-btn {
-    background-color: #2196F3;
-    color: #fff;
-}
-
-#index-back-btn:hover {
-    background-color: #0d8bf2;
+    background: none;
+    background-image: url('http://localhost/project/templates/back.png'); /* Set the URL of your back arrow image */
+    position: absolute; /* Position it absolutely within the question container */
+    top: 10px; /* Adjust as needed for vertical alignment */
+    left: 10px; /* Adjust as needed for horizontal alignment */
+    width: 50px; /* Width of the button - adjust as needed */
+    height: 50px; /* Height of the button - adjust as needed */
+    background-repeat: no-repeat;
 }
 
 #show-flagged-values-no-btn,
-#show-flagged-values-back-btn,
 #submit-answer-btn {
     margin-top: 20px;
     padding: 10px 20px;
@@ -85,18 +101,19 @@ button {
 }
 
 #show-flagged-values-back-btn {
-    background-color: #2196F3;
-    color: #fff;
-}
-
-#show-flagged-values-back-btn:hover {
-    background-color: #0d8bf2;
+    background: none;
+    background-image: url('http://localhost/project/templates/back.png'); /* Set the URL of your back arrow image */
+    position: absolute; /* Position it absolutely within the question container */
+    top: 10px; /* Adjust as needed for vertical alignment */
+    left: 10px; /* Adjust as needed for horizontal alignment */
+    width: 50px; /* Width of the button - adjust as needed */
+    height: 50px; /* Height of the button - adjust as needed */
+    background-repeat: no-repeat;
 }
 
 /* Styling for the find_missing_values page buttons */
 #find-missing-yes-btn,
-#find-missing-no-btn,
-#find-missing-back-btn {
+#find-missing-no-btn {
     margin-top: 20px;
     padding: 10px 20px;
     font-size: 16px;
@@ -114,12 +131,14 @@ button {
 }
 
 #find-missing-back-btn {
-    background-color: #2196F3;
-    color: #fff;
-}
-
-#find-missing-back-btn:hover {
-    background-color: #0d8bf2;
+    background: none;
+    background-image: url('http://localhost/project/templates/back.png'); /* Set the URL of your back arrow image */
+    position: absolute; /* Position it absolutely within the question container */
+    top: 10px; /* Adjust as needed for vertical alignment */
+    left: 10px; /* Adjust as needed for horizontal alignment */
+    width: 50px; /* Width of the button - adjust as needed */
+    height: 50px; /* Height of the button - adjust as needed */
+    background-repeat: no-repeat;
 }
 
 #question-count {
@@ -137,6 +156,11 @@ button {
     border: 1px solid #ddd;
     border-radius: 5px;
     background-color: #f9f9f9;
+    position: relative;
+}
+
+#question-container .action-btn {
+    z-index: 2;
 }
 
 /* Styling for the error message */
@@ -271,7 +295,6 @@ button {
     background-color: #ffebee; /* Very light red */
 }
 
-
 #submit-query-btn {
     background-color: #4CAF50;
     color: white;
@@ -295,13 +318,13 @@ button {
 }
 
 #show-flagged-values-btn {
-    margin-top: 40px;
     padding: 10px 20px;
     font-size: 16px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    background-color: #cacaca;
+    color: #fff;
+    background-color: #2196F3;
     
 }
 
@@ -311,13 +334,14 @@ button {
 }
 
 #index-find-missing-btn {
-    margin-top: 40px;
+    
     padding: 10px 20px;
     font-size: 16px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    background-color: #cacaca;
+    color: #fff;
+    background-color: #2196F3;
 }
 
 #index-find-missing-btn:hover {
@@ -771,3 +795,147 @@ button {
     display: block; /* Show overlay when active */
 }
 
+/* Hamburger Menu Button */
+.hamburger-menu {
+    font-size: 26px; /* Large icon size */
+    cursor: pointer;
+    background: none;
+    border: none;
+    position: absolute;
+    top: 20px;
+    left: 20px;
+}
+
+/* The side navigation menu */
+.side-nav {
+    height: 100%;
+    width: 0; /* Zero width - change this with JavaScript */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Stay on top */
+    top: 0;
+    left: 0;
+    background-color: #e7e6e6; /* Black*/
+    overflow-x: hidden; /* Disable horizontal scroll */
+    transition: 0.5s; /* 0.5 second transition effect to slide in the sidenav */
+    padding-top: 60px; /* Place content 60px from the top */
+}
+
+/* The navigation menu links */
+.side-nav button {
+    padding: 8px 8px 8px 32px;
+    text-decoration: none;
+    font-size: 25px;
+    color: #818181;
+    display: block;
+    transition: 0.3s;
+    text-align: left;
+    border: none;
+    background: none;
+}
+
+/* When you mouse over the navigation links, change their color */
+.side-nav button:hover {
+    color: #f1f1f1;
+}
+
+/* Position and style the close button (top right corner) */
+.side-nav .closebtn {
+    position: absolute;
+    top: 0;
+    right: 25px;
+    font-size: 36px;
+    margin-left: 50px;
+    color: red;
+}
+
+/* When you mouse over the close button, change its color */
+.side-nav .closebtn:hover {
+    color: #f1f1f1; /* Light color for hover state */
+}
+
+@media (max-width: 768px) {
+    .hamburger-menu {
+        position: fixed; /* Fix the hamburger menu on top for mobile devices */
+    }
+}
+
+.action-btn {
+    display: block; /* Make the button take the full width of its parent */
+    width: calc(100% - 20px); /* Full width minus left and right margins */
+    margin-left: 10px; /* Margin from the left side */
+    margin-right: 10px; /* Margin from the right side */
+    margin-bottom: 10px; /* Space between buttons */
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center; /* Center the text inside the button */
+    box-sizing: border-box; /* Include padding and border in the width */
+}
+
+.action-btn-sidebar {
+    display: block; /* Make the button take the full width of its parent */
+    width: 90%; /* Set a fixed width percentage of the parent container */
+    margin: 10px auto; /* Center the button and add spacing above and below */
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center; /* Center the text inside the button */
+    box-sizing: border-box; /* Include padding and border in the width */
+    background-color: #2196F3; /* Blue background */
+    color: white; /* White text */
+}
+
+/* Optionally, you can set a minimum width to ensure buttons are not too small on very narrow screens */
+@media (min-width: 300px) {
+    .action-btn {
+        min-width: 280px; /* Adjust the minimum width as needed */
+    }
+}
+
+#index-no-modify-btn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: #2196F3;
+    color: #fff;
+}
+
+#missing-no-modify-btn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: #2196F3;
+    color: #fff;
+}
+
+#flagged-no-modify-btn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background-color: #2196F3;
+    color: #fff;
+}
+
+#show-all-answered-questions-btn {
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    color: #fff;
+    background-color: #2196F3;
+    
+}
